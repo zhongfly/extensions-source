@@ -4,19 +4,21 @@ ext {
     extVersionCode = 38
 }
 
+apply from: "$rootDir/common.gradle"
+
 dependencies {
     implementation 'com.luhuiguo:chinese-utils:1.0'
     compileOnly(libs.okhttp)
 }
 
-apply from: "$rootDir/common.gradle"
-
 android {
-    packagingOptions {
-        exclude '/pinyin.txt'
-        exclude '/polyphone.txt'
-        exclude '/trad.txt'
-        exclude '/traditional.txt'
-        exclude '/unknown.txt'
+    packaging {
+		resources {
+			excludes += '/pinyin.txt'
+			excludes += '/polyphone.txt'
+			excludes += '/trad.txt'
+			excludes += '/traditional.txt'
+			excludes += '/unknown.txt'
+		}
     }
 }

@@ -198,7 +198,7 @@ The simplest extension structure looks like this:
 ```console
 $ tree src/<lang>/<mysourcename>/
 src/<lang>/<mysourcename>/
-├── AndroidManifest.xml
+├── AndroidManifest.xml (optional)
 ├── build.gradle
 ├── res
 │   ├── mipmap-hdpi
@@ -209,9 +209,8 @@ src/<lang>/<mysourcename>/
 │   │   └── ic_launcher.png
 │   ├── mipmap-xxhdpi
 │   │   └── ic_launcher.png
-│   ├── mipmap-xxxhdpi
-│   │   └── ic_launcher.png
-│   └── web_hi_res_512.png
+│   └── mipmap-xxxhdpi
+│       └── ic_launcher.png
 └── src
     └── eu
         └── kanade
@@ -224,21 +223,20 @@ src/<lang>/<mysourcename>/
 13 directories, 9 files
 ```
 
-#### AndroidManifest.xml
-A minimal [Android manifest file](https://developer.android.com/guide/topics/manifest/manifest-intro)
-is needed for Android to recognize an extension when it's compiled into an APK file. You can also add
-intent filters inside this file (see [URL intent filter](#url-intent-filter) for more information).
+`<lang>` should be an ISO 639-1 compliant language code (two letters or `all`). `<mysourcename>`
+should be adapted from the site name, and can only contain lowercase ASCII letters and digits.
+Your extension code must be placed in the package `eu.kanade.tachiyomi.extension.<lang>.<mysourcename>`.
+
+#### AndroidManifest.xml (optional)
+You only need to create this file if you want to add deep linking to your extension.
+See [URL intent filter](#url-intent-filter) for more information.
 
 #### build.gradle
 Make sure that your new extension's `build.gradle` file follows the following structure:
 
-```gradle
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-
+```groovy
 ext {
     extName = '<My source name>'
-    pkgNameSuffix = '<lang>.<mysourcename>'
     extClass = '.<MySourceName>'
     extVersionCode = 1
     isNsfw = true
@@ -249,14 +247,12 @@ apply from: "$rootDir/common.gradle"
 
 | Field            | Description                                                                                                                                                                            |
 |------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `extName`        | The name of the extension.                                                                                                                                                             |
-| `pkgNameSuffix`  | A unique suffix added to `eu.kanade.tachiyomi.extension`. The language and the site name should be enough. Remember your extension code implementation must be placed in this package. |
+| `extName`        | The name of the extension. Should be romanized if site name is not in English.                                                                                                         |
 | `extClass`       | Points to the class that implements `Source`. You can use a relative path starting with a dot (the package name is the base path). This is used to find and instantiate the source(s). |
 | `extVersionCode` | The extension version code. This must be a positive integer and incremented with any change to the code.                                                                               |
-| `libVersion`     | (Optional, defaults to `1.4`) The version of the [extensions library](https://github.com/tachiyomiorg/extensions-lib) used.                                                            |
 | `isNsfw`         | (Optional, defaults to `false`) Flag to indicate that a source contains NSFW content.                                                                                                  |
 
-The extension's version name is generated automatically by concatenating `libVersion` and `extVersionCode`.
+The extension's version name is generated automatically by concatenating `1.4` and `extVersionCode`.
 With the example used above, the version would be `1.4.1`.
 
 ### Core dependencies
@@ -274,7 +270,7 @@ Referencing the actual implementation will help with understanding extensions' c
 for handling [base 64 encoded image data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs)
 using an [OkHttp interceptor](https://square.github.io/okhttp/interceptors/).
 
-```gradle
+```groovy
 dependencies {
     implementation(project(':lib-dataimage'))
 }
@@ -286,7 +282,7 @@ dependencies {
 internationalization in the sources. It allows loading `.properties` files with messages located under
 the `assets/i18n` folder of each extension, that can be used to translate strings under the source.
 
-```gradle
+```groovy
 dependencies {
     implementation(project(':lib-i18n'))
 }
@@ -469,7 +465,7 @@ empty, so the app will skip the `fetchImageUrl` source and call directly `fetchI
 ### Misc notes
 
 - Sometimes you may find no use for some inherited methods. If so just override them and throw 
-exceptions: `throw UnsupportedOperationException("Not used.")`
+exceptions: `throw UnsupportedOperationException()`
 - You probably will find `getUrlWithoutDomain` useful when parsing the target source URLs. Keep in 
 mind there's a current issue with spaces in the URL though, so if you use it, replace all spaces with
 URL encoded characters (like `%20`).
@@ -573,9 +569,8 @@ multisrc
 │       │       │   └── ic_launcher.png
 │       │       ├── mipmap-xxhdpi
 │       │       │   └── ic_launcher.png
-│       │       ├── mipmap-xxxhdpi
-│       │       │   └── ic_launcher.png
-│       │       └── web_hi_res_512.png
+│       │       └── mipmap-xxxhdpi
+│       │           └── ic_launcher.png
 │       └── <sourcepkg>
 │           ├── additional.gradle
 │           ├── AndroidManifest.xml
@@ -588,9 +583,8 @@ multisrc
 │           │   │   └── ic_launcher.png
 │           │   ├── mipmap-xxhdpi
 │           │   │   └── ic_launcher.png
-│           │   ├── mipmap-xxxhdpi
-│           │   │   └── ic_launcher.png
-│           │   └── web_hi_res_512.png
+│           │   └── mipmap-xxxhdpi
+│           │       └── ic_launcher.png
 │           └── src
 │               └── <SourceName>.kt
 └── src
@@ -857,7 +851,7 @@ Git Repository in Android Studio" section of the guide.
 > [!IMPORTANT]
 > Make sure you have generated the extension icon using the linked Icon Generator tool in the [Tools](#tools) 
 > section. The icon **must follow the pattern** adopted by all other extensions: a square with rounded 
-> corners.
+> corners. Make sure to remove the generated `web_hi_res_512.png`.
 
 Please **do test your changes by compiling it through Android Studio** before submitting it. Obvious
 untested PRs will not be merged, such as ones created with the GitHub web interface. Also make sure
@@ -873,3 +867,4 @@ can find it below.
 - Have not changed source names
 - Have explicitly kept the `id` if a source's name or language were changed
 - Have tested the modifications by compiling and running the extension through Android Studio
+- Have removed `web_hi_res_512.png` when adding a new extension

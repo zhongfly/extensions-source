@@ -21,23 +21,25 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: 11
-          distribution: adopt
+          java-version: 17
+          distribution: temurin
 
       - name: Prepare signing key
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build extensions
-        uses: gradle/gradle-build-action@v2
         env:
-          CI_MULTISRC: "false"
           CI_CHUNK_NUM: 0
           ALIAS: ${{ secrets.ALIAS }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        with:
-          arguments: assembleRelease
+        run: |
+          chmod +x ./gradlew | true
+          ./gradlew -p src assembleRelease
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
@@ -64,7 +66,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: adopt
+          distribution: temurin
 
       - name: Checkout main branch
         uses: actions/checkout@v4
@@ -75,7 +77,7 @@ jobs:
         run: |
           cd main
           python ./.github/scripts/move-apks.py
-          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/tachiyomiorg/tachiyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
+          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
           curl -sSL "$INSPECTOR_LINK" -o ./Inspector.jar
           java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
           python ./.github/scripts/create-repo.py

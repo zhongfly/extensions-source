@@ -638,7 +638,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "2.1.2"
+        private const val DEFAULT_VERSION = "2.1.7"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20

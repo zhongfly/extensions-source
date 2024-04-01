@@ -23,11 +23,6 @@ android {
         }
     }
 
-    buildFeatures {
-        resValues = false
-        shaders = false
-    }
-
     kotlinOptions {
         freeCompilerArgs += "-opt-in=kotlinx.serialization.ExperimentalSerializationApi"
     }
@@ -41,14 +36,8 @@ kotlinter {
     )
 }
 
-repositories {
-    mavenCentral()
-}
-
-// TODO: use versionCatalogs.named("libs") in Gradle 8.5
-val libs = project.extensions.getByType<VersionCatalogsExtension>().named("libs")
 dependencies {
-    compileOnly(libs.findBundle("common").get())
+    compileOnly(versionCatalogs.named("libs").findBundle("common").get())
 }
 
 tasks {

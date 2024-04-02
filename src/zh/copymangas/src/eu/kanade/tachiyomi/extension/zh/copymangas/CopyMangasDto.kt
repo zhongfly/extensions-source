@@ -105,3 +105,14 @@ class ResultMessageDto(val code: Int, val message: String)
 
 @Serializable
 class TokenDto(val token: String)
+
+@Serializable
+class VersionDto(
+    val android: VersionInfo,
+) {
+    @Serializable
+    class VersionInfo(
+        val update: Boolean,
+        val version: String? = null,
+    )
+}

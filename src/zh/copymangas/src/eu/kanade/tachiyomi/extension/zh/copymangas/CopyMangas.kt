@@ -172,6 +172,28 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return result
     }
 
+    private fun updateVersion(): Map<String, String> { // ktlint-disable no-unit-return
+        val results = mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
+        try {
+            val response =
+                client.newCall(GET("https://api.copymangadownloader.com/api/v3/system/appVersion/last?platform=3", apiHeaders))
+                    .execute()
+            if (response.code == 200) {
+                val versionInfo =
+                    json.decodeFromStream<ResultDto<VersionDto>>(response.body.byteStream()).results.android
+                results["version"] = versionInfo.version!!
+                results["success"] = "true"
+                if (versionInfo.update) {
+                    preferences.edit().putString(VERSION_PREF, versionInfo.version).apply()
+                    apiHeaders = apiHeaders.newBuilder().setVersion(versionInfo.version).build()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CopyMangas", "failed to update version", e)
+        }
+        return results
+    }
+
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
         if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
@@ -185,6 +207,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 }
             }
         }
+        updateVersion()
     }
 
     override fun popularMangaRequest(page: Int): Request {
@@ -587,6 +610,29 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 true
             }
         }.let { screen.addPreference(it) }*/
+
+        SwitchPreferenceCompat(screen.context).apply {
+            title = "更新官方应用版本号"
+            summary = "点击此选项尝试更新官方应用的版本号"
+            setOnPreferenceChangeListener { _, _ ->
+                Toast.makeText(screen.context, "开始更新", Toast.LENGTH_SHORT).show()
+                fetchTokenState = 1
+                thread {
+                    try {
+                        val r = updateVersion()
+                        if (r["success"] == "false") {
+                            showToast(screen.context, "失败:" + r["message"])
+                        } else {
+                            showToast(screen.context, r["version"]!!)
+                        }
+                    } catch (e: Throwable) {
+                        fetchTokenState = 0
+                        Log.e("CopyMangas", "failed to update version", e)
+                    }
+                }
+                false
+            }
+        }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
             key = VERSION_PREF

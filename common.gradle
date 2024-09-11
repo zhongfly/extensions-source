@@ -9,6 +9,7 @@ assert !ext.has("libVersion")
 assert extName.chars().max().asInt < 0x180 : "Extension name should be romanized"
 
 Project theme = ext.has("themePkg") ? project(":lib-multisrc:$themePkg") : null
+if (theme != null) evaluationDependsOn(theme.path)
 
 android {
     compileSdk AndroidConfig.compileSdk
@@ -63,6 +64,7 @@ android {
         release {
             signingConfig signingConfigs.release
             minifyEnabled false
+            vcsInfo.include false
         }
     }
 
@@ -72,6 +74,10 @@ android {
 
     buildFeatures {
         buildConfig true
+    }
+
+    packaging {
+        resources.excludes.add("kotlin-tooling-metadata.json")
     }
 
     compileOptions {

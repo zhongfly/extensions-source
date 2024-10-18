@@ -76,7 +76,7 @@ class Dumanwu : ParsedHttpSource() {
         chapters.addAll(
             chapterElements.map {
                 SChapter.create().apply {
-                    url = it.attr("href")
+                    url = it.attr("href").removeSuffix(".html")
                     name = it.text()
                 }
             },
@@ -102,9 +102,9 @@ class Dumanwu : ParsedHttpSource() {
     override fun chapterListSelector(): String = throw UnsupportedOperationException()
     override fun chapterFromElement(element: Element): SChapter = throw UnsupportedOperationException()
 
-    override fun pageListRequest(chapter: SChapter): Request = GET("$baseUrl/${chapter.url}")
+    override fun pageListRequest(chapter: SChapter): Request = GET("$baseUrl/${chapter.url}.html")
     override fun pageListParse(document: Document): List<Page> {
-        val encScript = document.selectFirst("script[type]")!!.data()
+        val encScript = document.selectFirst("script:containsData(eval)")!!.data()
         val id = document.selectFirst(".readerContainer[data-id]")!!.attr("data-id")
         val images = QuickJs.create().use {
             it.evaluate("var id=$id;$encScript;$decryptScript") as Array<*>

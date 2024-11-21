@@ -138,13 +138,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("username", username)
                 .addEncoded("password", passwordEncoded)
                 .addEncoded("salt", salt)
-                .addEncoded("platform", "3")
                 .addEncoded("authorization", "Token+")
                 .addEncoded("version", preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
                 .addEncoded("source", "copyApp")
                 .build()
             val headers = apiHeaders.newBuilder().setToken().build()
-            val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers, formBody)).execute()
+            val response = client.newCall(POST("$apiUrl/api/v3/login", headers, formBody)).execute()
             if (response.code != 200) {
                 results["message"] = json.decodeFromStream<ResultMessageDto>(response.body.byteStream()).message
             } else {
@@ -164,7 +163,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
                 .build()
-            val response = client.newCall(GET("$apiUrl/api/v3/member/info?platform=3", headers)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/member/info", headers)).execute()
             result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
@@ -176,7 +175,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val results = mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
         try {
             val response =
-                client.newCall(GET("https://api.copymangadownloader.com/api/v3/system/appVersion/last?platform=3", apiHeaders))
+                client.newCall(GET("https://api.copymangadownloader.com/api/v3/system/appVersion/last", apiHeaders))
                     .execute()
             if (response.code == 200) {
                 val versionInfo =
@@ -212,7 +211,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun popularMangaRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
-        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=&platform=3", apiHeaders)
+        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=", apiHeaders)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
@@ -223,7 +222,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun latestUpdatesRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
-        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=&platform=3", apiHeaders)
+        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=", apiHeaders)
     }
 
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
@@ -238,7 +237,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
-            builder.addQueryParameter("q_type", "").addQueryParameter("platform", "3")
+            // builder.addQueryParameter("q_type", "").addQueryParameter("platform", "3")
             if (!alwaysUseToken) {
                 headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
             }
@@ -260,7 +259,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun getMangaUrl(manga: SManga): String = webDomain + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=3", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
 
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
@@ -275,7 +274,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             else -> name
         }
         while (hasNextPage) {
-            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&platform=3", apiHeaders)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(groupName) }
@@ -302,7 +301,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun getChapterUrl(chapter: SChapter): String = webDomain + chapter.url.replace("/chapter2/", "/chapter/")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}?platform=3 ", apiHeaders)
+    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url} ", apiHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
@@ -372,7 +371,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         isFetchingGenres = true
         thread {
             try {
-                val response = client.newCall(GET("$apiUrl/api/v3/theme/comic/count?limit=500&offset=0&free_type=1&platform=3", apiHeaders)).execute()
+                val response = client.newCall(GET("$apiUrl/api/v3/theme/comic/count?limit=500&offset=0&free_type=1", apiHeaders)).execute()
                 val list = response.parseAs<ListDto<KeywordDto>>().list.sortedBy { it.name }
                 val result = ArrayList<Param>(list.size + 1).apply { add(Param("全部", "")) }
                 genres = list.mapTo(result) { it.toParam() }.toTypedArray()

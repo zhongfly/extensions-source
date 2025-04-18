@@ -38,5 +38,25 @@
         "versionId": 1
       }
     ]
+  },
+  {
+    "name": "Tachiyomi: Rumanhua",
+    "pkg": "eu.kanade.tachiyomi.extension.zh.rumanhua",
+    "apk": "tachiyomi-zh.rumanhua-v1.4.1.apk",
+    "lang": "zh",
+    "code": 1,
+    "version": "1.4.1",
+    "nsfw": 0,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "如漫画",
+        "lang": "zh",
+        "id": "392262758488714109",
+        "baseUrl": "https://rumanhua.com",
+        "versionId": 1
+      }
+    ]
   }
 ]

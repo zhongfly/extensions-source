@@ -66,7 +66,7 @@ class Rumanhua : ParsedHttpSource() {
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val body = FormBody.Builder()
-            .addEncoded("k", query)
+            .addEncoded("k", query.take(12))
             .build()
         return POST("$baseUrl/s", body = body)
     }

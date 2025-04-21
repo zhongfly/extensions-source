@@ -27,7 +27,7 @@ class Rumanhua : ParsedHttpSource() {
     override val lang = "zh"
     override val supportsLatest = true
     override val name = "如漫画"
-    override val baseUrl = "https://rumanhua.com"
+    override val baseUrl = "http://rumanhua1.com"
     override val client: OkHttpClient = network.client.newBuilder()
         .ignoreAllSSLErrors()
         .build()

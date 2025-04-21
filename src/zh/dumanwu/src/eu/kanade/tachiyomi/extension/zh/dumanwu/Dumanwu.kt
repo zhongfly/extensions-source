@@ -27,7 +27,7 @@ class Dumanwu : ParsedHttpSource() {
     override val lang = "zh"
     override val supportsLatest = true
     override val name = "读漫屋"
-    override val baseUrl = "https://dumanwu1.com"
+    override val baseUrl = "http://dumanwu1.com"
     override val client: OkHttpClient = network.client.newBuilder()
         .ignoreAllSSLErrors()
         .build()

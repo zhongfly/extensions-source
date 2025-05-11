@@ -56,8 +56,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
-    private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
-    private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
+    private var domain = API_DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, API_DOMAINS.size - 1)]
+    private var webDomain = WWW_PREFIX + WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
@@ -390,13 +390,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             key = DOMAIN_PREF
             title = "API域名"
             summary = "连接不稳定时可以尝试切换\n当前值：%s"
-            entries = DOMAINS
-            entryValues = DOMAIN_INDICES
-            setDefaultValue(DOMAIN_INDICES[0])
+            entries = API_DOMAINS
+            entryValues = API_DOMAIN_INDICES
+            setDefaultValue(API_DOMAIN_INDICES[0])
             setOnPreferenceChangeListener { _, newValue ->
                 val index = newValue as String
                 preferences.edit().putString(DOMAIN_PREF, index).apply()
-                domain = DOMAINS[index.toInt()]
+                domain = API_DOMAINS[index.toInt()]
                 apiUrl = API_PREFIX + domain
                 apiHeaders = apiHeaders.newBuilder().setReferer(apiUrl).build()
                 true
@@ -407,13 +407,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             key = WEB_DOMAIN_PREF
             title = "网页版域名"
             summary = "webview中使用的域名\n当前值：%s"
-            entries = DOMAINS
-            entryValues = DOMAIN_INDICES
-            setDefaultValue(DOMAIN_INDICES[0])
+            entries = WEB_DOMAINS
+            entryValues = WEB_DOMAIN_INDICES
+            setDefaultValue(WEB_DOMAIN_INDICES[0])
             setOnPreferenceChangeListener { _, newValue ->
                 val index = newValue as String
                 preferences.edit().putString(WEB_DOMAIN_PREF, index).apply()
-                webDomain = WWW_PREFIX + DOMAINS[index.toInt()]
+                webDomain = WWW_PREFIX + WEB_DOMAINS[index.toInt()]
                 true
             }
         }.let { screen.addPreference(it) }
@@ -678,12 +678,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
-        private val DOMAINS = arrayOf("mangacopy.com", "copymanga.tv", "copymanga.site")
-        private val DOMAIN_INDICES = arrayOf("0", "1", "2")
+        private val API_DOMAINS = arrayOf("mangacopy.com", "copy-manga.com")
+        private val API_DOMAIN_INDICES = arrayOf("0", "1")
+        private val WEB_DOMAINS = arrayOf("mangacopy.com", "copy-manga.com", "copy20.com")
+        private val WEB_DOMAIN_INDICES = arrayOf("0", "1", "2")
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "2.1.7"
+        private const val DEFAULT_VERSION = "2.2.9"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20

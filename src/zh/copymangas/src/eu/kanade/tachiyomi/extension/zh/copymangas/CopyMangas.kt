@@ -678,14 +678,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
-        private val API_DOMAINS = arrayOf("mangacopy.com", "copy-manga.com")
-        private val API_DOMAIN_INDICES = arrayOf("0", "1")
-        private val WEB_DOMAINS = arrayOf("mangacopy.com", "copy-manga.com", "copy20.com")
-        private val WEB_DOMAIN_INDICES = arrayOf("0", "1", "2")
+        private val API_DOMAINS = arrayOf("copy-manga.com")
+        private val API_DOMAIN_INDICES = arrayOf("0")
+        private val WEB_DOMAINS = arrayOf("copy-manga.com", "copy20.com")
+        private val WEB_DOMAIN_INDICES = arrayOf("0", "1")
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "2.2.9"
+        private const val DEFAULT_VERSION = "2.3.0"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20

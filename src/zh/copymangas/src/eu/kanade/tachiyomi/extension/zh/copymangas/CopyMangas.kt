@@ -310,7 +310,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
         }
         val orders = result.chapter.words
-        val pageList = result.chapter.contents.filter { it.url.contains("/$slug/") }.withIndex().sortedBy { orders[it.index] }.map { it.value }
+        val pageList = result.chapter.contents.filter { it.url.contains("/$slug") }.withIndex().sortedBy { orders[it.index] }.map { it.value }
         return pageList.mapIndexed { i, it ->
             Page(i, imageUrl = it.url)
         }

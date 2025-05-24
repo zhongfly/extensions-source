@@ -516,6 +516,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = USERNAME_PREF
             title = "用户名"
+            setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 fetchTokenState = 0
                 preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
@@ -526,6 +527,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = PASSWORD_PREF
             title = "密码"
+            setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 fetchTokenState = 0
                 preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
@@ -550,6 +552,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         SwitchPreferenceCompat(screen.context).apply {
             title = "更新Token"
             summary = "填写用户名及密码设置后，点击此选项尝试登录以更新Token"
+            setDefaultValue(false)
             setOnPreferenceChangeListener { _, _ ->
                 if (fetchTokenState == 1) {
                     Toast.makeText(screen.context, "正在尝试登录，请勿反复点击", Toast.LENGTH_SHORT).show()
@@ -614,6 +617,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         SwitchPreferenceCompat(screen.context).apply {
             title = "更新官方应用版本号"
             summary = "点击此选项尝试更新官方应用的版本号"
+            setDefaultValue(false)
             setOnPreferenceChangeListener { _, _ ->
                 Toast.makeText(screen.context, "开始更新", Toast.LENGTH_SHORT).show()
                 fetchTokenState = 1

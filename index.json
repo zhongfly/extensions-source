@@ -2,10 +2,10 @@
   {
     "name": "Tachiyomi: CopyMangas",
     "pkg": "eu.kanade.tachiyomi.extension.zh.copymangas",
-    "apk": "tachiyomi-zh.copymangas-v1.4.42.apk",
+    "apk": "tachiyomi-zh.copymangas-v1.4.43.apk",
     "lang": "zh",
-    "code": 42,
-    "version": "1.4.42",
+    "code": 43,
+    "version": "1.4.43",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
@@ -14,7 +14,7 @@
         "name": "拷贝漫画",
         "lang": "zh",
         "id": "6696312508930833206",
-        "baseUrl": "https://www.copy-manga.com",
+        "baseUrl": "https://www.copy20.com",
         "versionId": 1
       }
     ]

@@ -550,6 +550,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         SwitchPreferenceCompat(screen.context).apply {
+            key = "update_token"
             title = "更新Token"
             summary = "填写用户名及密码设置后，点击此选项尝试登录以更新Token"
             setDefaultValue(false)
@@ -615,6 +616,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }*/
 
         SwitchPreferenceCompat(screen.context).apply {
+            key = "update_version"
             title = "更新官方应用版本号"
             summary = "点击此选项尝试更新官方应用的版本号"
             setDefaultValue(false)

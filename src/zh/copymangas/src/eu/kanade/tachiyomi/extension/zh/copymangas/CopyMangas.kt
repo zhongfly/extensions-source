@@ -120,7 +120,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" })
         .add("platform", "3")
         .add("dt", "2025.5.25")
-        .add("umstring","b4c89ca4104ea9a97750314d791520ac")
+        .add("umstring", "b4c89ca4104ea9a97750314d791520ac")
         .build()
 
     override fun headersBuilder() = Headers.Builder()

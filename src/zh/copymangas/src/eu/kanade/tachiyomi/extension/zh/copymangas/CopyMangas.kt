@@ -120,6 +120,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" })
         .add("platform", "3")
         .add("dt", "2025.5.25")
+        .add("umstring","b4c89ca4104ea9a97750314d791520ac")
         .build()
 
     override fun headersBuilder() = Headers.Builder()
@@ -139,9 +140,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("username", username)
                 .addEncoded("password", passwordEncoded)
                 .addEncoded("salt", salt)
-                .addEncoded("authorization", "Token+")
-                .addEncoded("version", preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
-                .addEncoded("source", "copyApp")
                 .build()
             val headers = apiHeaders.newBuilder().setToken().build()
             val response = client.newCall(POST("$apiUrl/api/v3/login", headers, formBody)).execute()
@@ -176,7 +174,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val results = mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
         try {
             val response =
-                client.newCall(GET("https://api.copymangadownloader.com/api/v3/system/appVersion/last", apiHeaders))
+                client.newCall(GET("$apiUrl/api/v3/system/appVersion/last", apiHeaders))
                     .execute()
             if (response.code == 200) {
                 val versionInfo =
@@ -687,8 +685,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val API_PREFIX = "https://api."
         private val API_DOMAINS = arrayOf("copy-manga.com", "copy2000.online")
         private val API_DOMAIN_INDICES = arrayOf("0", "1")
-        private val WEB_DOMAINS = arrayOf("copy20.com", "copy2000.online")
-        private val WEB_DOMAIN_INDICES = arrayOf("0", "1")
+        private val WEB_DOMAINS = arrayOf("copy20.com")
+        private val WEB_DOMAIN_INDICES = arrayOf("0")
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"

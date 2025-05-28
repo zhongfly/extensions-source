@@ -9,9 +9,6 @@ on:
         default: true
         type: boolean
 
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
 
 env:
   CI_CHUNK_SIZE: 65

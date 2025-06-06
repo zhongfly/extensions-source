@@ -114,9 +114,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiHeaders = Headers.Builder()
         // .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source", "copyApp")
-        .setWebp(preferences.getBoolean(WEBP_PREF, true))
+        .setWebp(true)
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
-        .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
+        .setRegion(false)
         .setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" })
         .add("platform", "3")
         .add("dt", "2025.5.25")
@@ -417,18 +417,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = OVERSEAS_CDN_PREF
-            title = "使用“港台及海外线路”"
-            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
-            setDefaultValue(false)
-            setOnPreferenceChangeListener { _, newValue ->
-                val useOverseasCdn = newValue as Boolean
-                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
-                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
+//        SwitchPreferenceCompat(screen.context).apply {
+//            key = OVERSEAS_CDN_PREF
+//            title = "使用“港台及海外线路”"
+//            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
+//            setDefaultValue(false)
+//            setOnPreferenceChangeListener { _, newValue ->
+//                val useOverseasCdn = newValue as Boolean
+//                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
+//                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
+//                true
+//            }
+//        }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
             key = QUALITY_PREF
@@ -444,18 +444,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = WEBP_PREF
-            title = "使用 WebP 图片格式"
-            summary = "默认开启，可以节省网站流量"
-            setDefaultValue(true)
-            setOnPreferenceChangeListener { _, newValue ->
-                val useWebp = newValue as Boolean
-                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
-                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
+//        SwitchPreferenceCompat(screen.context).apply {
+//            key = WEBP_PREF
+//            title = "使用 WebP 图片格式"
+//            summary = "默认开启，可以节省网站流量"
+//            setDefaultValue(true)
+//            setOnPreferenceChangeListener { _, newValue ->
+//                val useWebp = newValue as Boolean
+//                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
+//                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
+//                true
+//            }
+//        }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
             key = GROUP_API_RATE_PREF
@@ -463,7 +463,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue("20")
+            setDefaultValue("15")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
@@ -477,7 +477,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节图片列表api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue("20")
+            setDefaultValue("15")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(CHAPTER_API_RATE_PREF, rateLimit).apply()
@@ -683,8 +683,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
-        private val API_DOMAINS = arrayOf("copy-manga.com", "copy2000.online")
-        private val API_DOMAIN_INDICES = arrayOf("0", "1")
+        private val API_DOMAINS = arrayOf("copy2000.online")
+        private val API_DOMAIN_INDICES = arrayOf("0")
         private val WEB_DOMAINS = arrayOf("copy20.com")
         private val WEB_DOMAIN_INDICES = arrayOf("0")
         private val QUALITY = arrayOf("800", "1200", "1500")

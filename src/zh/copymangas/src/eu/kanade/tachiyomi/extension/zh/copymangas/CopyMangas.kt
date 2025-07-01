@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.zh.copymangas
 
-import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Handler
@@ -23,6 +22,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.utils.getPreferences
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.FormBody
@@ -34,8 +34,6 @@ import okhttp3.RequestBody
 import okhttp3.Response
 import rx.Observable
 import rx.Single
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -54,8 +52,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private val json: Json by injectLazy()
 
-    private val preferences: SharedPreferences =
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    private val preferences: SharedPreferences = getPreferences()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
@@ -168,9 +165,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiHeaders = Headers.Builder()
         // .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source", "copyApp")
-        .setWebp(true)
+        .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
-        .setRegion(false)
+        .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
         .setToken(
             if (alwaysUseToken) {
                 preferences.getString(TOKEN_PREF, "")!!
@@ -213,7 +210,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     json.decodeFromStream<ResultMessageDto>(response.body.byteStream()).message
             } else {
                 results["token"] =
-                    json.decodeFromStream<ResultDto<TokenDto>>(response.body.byteStream()).results.token!!
+                    json.decodeFromStream<ResultDto<TokenDto>>(response.body.byteStream()).results.token
                 results["success"] = "true"
             }
         } catch (e: Exception) {
@@ -527,18 +524,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-//        SwitchPreferenceCompat(screen.context).apply {
-//            key = OVERSEAS_CDN_PREF
-//            title = "使用“港台及海外线路”"
-//            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
-//            setDefaultValue(false)
-//            setOnPreferenceChangeListener { _, newValue ->
-//                val useOverseasCdn = newValue as Boolean
-//                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
-//                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
-//                true
-//            }
-//        }.let { screen.addPreference(it) }
+        SwitchPreferenceCompat(screen.context).apply {
+            key = OVERSEAS_CDN_PREF
+            title = "使用“港台及海外线路”"
+            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                val useOverseasCdn = newValue as Boolean
+                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
+                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
             key = QUALITY_PREF
@@ -554,18 +551,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-//        SwitchPreferenceCompat(screen.context).apply {
-//            key = WEBP_PREF
-//            title = "使用 WebP 图片格式"
-//            summary = "默认开启，可以节省网站流量"
-//            setDefaultValue(true)
-//            setOnPreferenceChangeListener { _, newValue ->
-//                val useWebp = newValue as Boolean
-//                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
-//                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
-//                true
-//            }
-//        }.let { screen.addPreference(it) }
+        SwitchPreferenceCompat(screen.context).apply {
+            key = WEBP_PREF
+            title = "使用 WebP 图片格式"
+            summary = "默认开启，可以节省网站流量"
+            setDefaultValue(true)
+            setOnPreferenceChangeListener { _, newValue ->
+                val useWebp = newValue as Boolean
+                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
+                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
             key = GROUP_API_RATE_PREF

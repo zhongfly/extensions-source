@@ -339,7 +339,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun getMangaUrl(manga: SManga): String = webDomain + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?in_mainland=true&request_id=${randomString(9)}&platform=3", apiHeaders)
 
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
@@ -356,7 +356,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         while (hasNextPage) {
             val response = client.newCall(
                 GET(
-                    "$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset",
+                    "$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&in_mainland=true&request_id=${randomString(9)}&platform=3",
                     apiHeaders,
                 ),
             ).execute()
@@ -392,7 +392,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
     override fun pageListRequest(chapter: SChapter) =
-        GET("$apiUrl/api/v3${chapter.url} ", apiHeaders)
+        GET("$apiUrl/api/v3${chapter.url}?in_mainland=true&request_id=${randomString(9)}&platform=3", apiHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()

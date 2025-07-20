@@ -2,10 +2,10 @@
   {
     "name": "Tachiyomi: CopyMangas",
     "pkg": "eu.kanade.tachiyomi.extension.zh.copymangas",
-    "apk": "tachiyomi-zh.copymangas-v1.4.48.apk",
+    "apk": "tachiyomi-zh.copymangas-v1.4.49.apk",
     "lang": "zh",
-    "code": 48,
-    "version": "1.4.48",
+    "code": 49,
+    "version": "1.4.49",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
@@ -14,27 +14,7 @@
         "name": "拷贝漫画",
         "lang": "zh",
         "id": "6696312508930833206",
-        "baseUrl": "https://www.copy20.com",
-        "versionId": 1
-      }
-    ]
-  },
-  {
-    "name": "Tachiyomi: Dumanwu",
-    "pkg": "eu.kanade.tachiyomi.extension.zh.dumanwu",
-    "apk": "tachiyomi-zh.dumanwu-v1.4.5.apk",
-    "lang": "zh",
-    "code": 5,
-    "version": "1.4.5",
-    "nsfw": 0,
-    "hasReadme": 0,
-    "hasChangelog": 0,
-    "sources": [
-      {
-        "name": "读漫屋",
-        "lang": "zh",
-        "id": "7167507050606280098",
-        "baseUrl": "http://dumanwu1.com",
+        "baseUrl": "https://www.2025copy.com",
         "versionId": 1
       }
     ]

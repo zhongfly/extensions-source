@@ -56,18 +56,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
-    private var domain = API_DOMAINS[
-        preferences.getString(DOMAIN_PREF, "0")!!.toInt()
-            .coerceIn(0, API_DOMAINS.size - 1),
-    ]
-    private var webDomain =
-        WWW_PREFIX + WEB_DOMAINS[
-            preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt()
-                .coerceIn(0, WEB_DOMAINS.size - 1),
-        ]
-    override val baseUrl = webDomain
-    private var apiUrl = API_PREFIX + domain // www. 也可以
+    private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
+    private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
+    override val baseUrl = "https://" + DEFAULT_WEB_DOMAIN
 
+    private fun getDomain(pref: String, default: String): String {
+        val domain = preferences.getString(pref, default)
+        return if (domain.isNullOrBlank()) {
+            "https://$default"
+        } else {
+            "https://$domain"
+        }
+    }
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
@@ -185,7 +185,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
-        .setReferer(webDomain)
+        .setReferer(webUrl)
 
     private fun fetchToken(username: String, password: String): Map<String, String> {
         val results =
@@ -336,7 +336,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
 
-    override fun getMangaUrl(manga: SManga): String = webDomain + manga.url
+    override fun getMangaUrl(manga: SManga): String = webUrl + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) =
         GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?in_mainland=true&request_id=${randomString(9)}&platform=3", apiHeaders)
@@ -388,7 +388,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         throw UnsupportedOperationException("Not used.")
 
     override fun getChapterUrl(chapter: SChapter): String =
-        webDomain + chapter.url.replace("/chapter2/", "/chapter/")
+        webUrl + chapter.url.replace("/chapter2/", "/chapter/")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
     override fun pageListRequest(chapter: SChapter) =
@@ -491,35 +491,37 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     var fetchTokenState =
         0 // -1 = failed , 0 = not yet, 1 = fetching, 2 = succeed, 3 = Token is valid no need to refresh
 
+    private val domainRegex = Regex("""(?<=://|^)([a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)""")
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        ListPreference(screen.context).apply {
+        EditTextPreference(screen.context).apply {
             key = DOMAIN_PREF
             title = "API域名"
-            summary = "连接不稳定时可以尝试切换\n当前值：%s"
-            entries = API_DOMAINS
-            entryValues = API_DOMAIN_INDICES
-            setDefaultValue(API_DOMAIN_INDICES[0])
+            summary = "API请求使用的域名，默认为$DEFAULT_API_DOMAIN"
+            setDefaultValue(DEFAULT_API_DOMAIN)
             setOnPreferenceChangeListener { _, newValue ->
-                val index = newValue as String
-                preferences.edit().putString(DOMAIN_PREF, index).apply()
-                domain = API_DOMAINS[index.toInt()]
-                apiUrl = API_PREFIX + domain
+                var domain = domainRegex.find(newValue as String)?.value
+                if (domain.isNullOrBlank()) {
+                    domain = DEFAULT_API_DOMAIN
+                }
+                preferences.edit().putString(DOMAIN_PREF, domain).commit()
+                apiUrl = "https://$domain"
                 apiHeaders = apiHeaders.newBuilder().setReferer(apiUrl).build()
                 true
             }
         }.let { screen.addPreference(it) }
 
-        ListPreference(screen.context).apply {
+        EditTextPreference(screen.context).apply {
             key = WEB_DOMAIN_PREF
             title = "网页版域名"
-            summary = "webview中使用的域名\n当前值：%s"
-            entries = WEB_DOMAINS
-            entryValues = WEB_DOMAIN_INDICES
-            setDefaultValue(WEB_DOMAIN_INDICES[0])
+            summary = "webview中使用的域名，默认为$DEFAULT_WEB_DOMAIN"
+            setDefaultValue(DEFAULT_WEB_DOMAIN)
             setOnPreferenceChangeListener { _, newValue ->
-                val index = newValue as String
-                preferences.edit().putString(WEB_DOMAIN_PREF, index).apply()
-                webDomain = WWW_PREFIX + WEB_DOMAINS[index.toInt()]
+                var domain = domainRegex.find(newValue as String)?.value
+                if (domain.isNullOrBlank()) {
+                    domain = DEFAULT_WEB_DOMAIN
+                }
+                preferences.edit().putString(WEB_DOMAIN_PREF, domain).commit()
+                webUrl = "https://$domain"
                 true
             }
         }.let { screen.addPreference(it) }
@@ -742,19 +744,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 false
             }
         }.let { screen.addPreference(it) }
-        /*
-                EditTextPreference(screen.context).apply {
-                    key = USER_AGENT_PREF
-                    title = "User Agent"
-                    summary = "高级设置，不建议修改"
-                    setDefaultValue(DEFAULT_USER_AGENT)
-                    setOnPreferenceChangeListener { _, newValue ->
-                        val userAgent = newValue as String
-                        preferences.edit().putString(USER_AGENT_PREF, userAgent).apply()
-                        apiHeaders = apiHeaders.newBuilder().setUserAgent(userAgent).build()
-                        true
-                    }
-                }.let { screen.addPreference(it) }*/
 
         SwitchPreferenceCompat(screen.context).apply {
             key = "update_version"
@@ -808,8 +797,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     companion object {
-        private const val DOMAIN_PREF = "domainZ"
-        private const val WEB_DOMAIN_PREF = "webDomainZ"
+        private const val DOMAIN_PREF = "api_domainZ"
+        private const val WEB_DOMAIN_PREF = "web_domainZ"
         private const val OVERSEAS_CDN_PREF = "changeCDNZ"
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
@@ -824,12 +813,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
-        private const val WWW_PREFIX = "https://www."
-        private const val API_PREFIX = "https://api."
-        private val API_DOMAINS = arrayOf("copy2000.online")
-        private val API_DOMAIN_INDICES = arrayOf("0")
-        private val WEB_DOMAINS = arrayOf("copy20.com")
-        private val WEB_DOMAIN_INDICES = arrayOf("0")
+        private const val DEFAULT_API_DOMAIN = "api.copy2000.online"
+        private const val DEFAULT_WEB_DOMAIN = "www.2025copy.com"
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"

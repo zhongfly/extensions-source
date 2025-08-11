@@ -521,8 +521,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         SwitchPreferenceCompat(screen.context).apply {
             key = OVERSEAS_CDN_PREF
-            title = "使用“港台及海外线路”"
-            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
+            title = "图片使用“港台及海外线路”"
+            summary = "关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
             setDefaultValue(false)
             setOnPreferenceChangeListener { _, newValue ->
                 val useOverseasCdn = newValue as Boolean

@@ -793,6 +793,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
-        private const val CHAPTER_PAGE_SIZE = 500
+        private const val CHAPTER_PAGE_SIZE = 100
     }
 }

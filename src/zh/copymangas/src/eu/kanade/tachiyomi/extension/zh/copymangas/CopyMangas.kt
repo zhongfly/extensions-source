@@ -149,8 +149,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private fun Headers.Builder.setToken(token: String = "") = set(
         "authorization",
-        if (!token.isNullOrBlank()) {
-            "Token " + token
+        if (token.isNotBlank()) {
+            "Token $token"
         } else {
             "Token"
         },
@@ -187,7 +187,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
-        .setReferer(webUrl)
 
     private fun fetchToken(username: String, password: String): Map<String, String> {
         val results =
@@ -263,24 +262,23 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
-            val username = preferences.getString(USERNAME_PREF, "")!!
-            val password = preferences.getString(PASSWORD_PREF, "")!!
-            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                val results = fetchToken(username, password)
-                if (results["success"] != "false") {
-                    preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                    apiHeaders = apiHeaders.newBuilder().setToken(
-                        if (alwaysUseToken) {
-                            results["token"]!!
-                        } else {
-                            ""
-                        },
-                    ).build()
-                }
-            }
-        }
-        updateVersion()
+//        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
+//            val username = preferences.getString(USERNAME_PREF, "")!!
+//            val password = preferences.getString(PASSWORD_PREF, "")!!
+//            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+//                val results = fetchToken(username, password)
+//                if (results["success"] != "false") {
+//                    preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
+//                    apiHeaders = apiHeaders.newBuilder().setToken(
+//                        if (alwaysUseToken) {
+//                            results["token"]!!
+//                        } else {
+//                            ""
+//                        },
+//                    ).build()
+//                }
+//            }
+//        }
     }
 
     override fun popularMangaRequest(page: Int): Request {
@@ -398,10 +396,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
-        val slug = response.request.url.pathSegments[3]
-        if (result.show_app) {
-            throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
-        }
         val orders = result.chapter.words
         val pageList = result.chapter.contents.withIndex()
             .sortedBy { orders[it.index] }.map { it.value }
@@ -507,7 +501,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 }
                 preferences.edit().putString(DOMAIN_PREF, domain).commit()
                 apiUrl = "https://$domain"
-                apiHeaders = apiHeaders.newBuilder().setReferer(apiUrl).build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -812,8 +805,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val USERNAME_PREF = "usernameZ"
         private const val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
-        private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
+
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
         private const val DEFAULT_API_DOMAIN = "api.copy2000.online"

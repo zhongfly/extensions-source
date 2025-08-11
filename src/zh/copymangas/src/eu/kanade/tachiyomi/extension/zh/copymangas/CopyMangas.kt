@@ -68,7 +68,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             "https://$domain"
         }
     }
-    private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
+
+//    private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
@@ -86,15 +87,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val sslContext = SSLContext.getInstance("SSL").apply {
         init(null, arrayOf(trustManager), SecureRandom())
     }
-    private val groupInterceptor = RateLimitInterceptor(
-        null,
-        preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(),
-        61,
-        TimeUnit.SECONDS,
-    )
+
+//    private val groupInterceptor = RateLimitInterceptor(
+//        null,
+//        preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(),
+//        61,
+//        TimeUnit.SECONDS,
+//    )
     private val chapterInterceptor = RateLimitInterceptor(
         null,
-        preferences.getString(CHAPTER_API_RATE_PREF, "20")!!.toInt(),
+        preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(),
         61,
         TimeUnit.SECONDS,
     )
@@ -114,7 +116,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .addInterceptor { chain ->
             val url = chain.request().url.toString()
             when {
-                url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
+//                url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
                 url.contains(chapterRatelimitRegex) -> chapterInterceptor.intercept(chain)
                 else -> chain.proceed(chain.request())
             }
@@ -566,26 +568,26 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        ListPreference(screen.context).apply {
-            key = GROUP_API_RATE_PREF
-            title = "章节目录请求频率限制"
-            summary =
-                "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
-            entries = RATE_ARRAY
-            entryValues = RATE_ARRAY
-            setDefaultValue("15")
-            setOnPreferenceChangeListener { _, newValue ->
-                val rateLimit = newValue as String
-                preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
-                true
-            }
-        }.let { screen.addPreference(it) }
+//        ListPreference(screen.context).apply {
+//            key = GROUP_API_RATE_PREF
+//            title = "章节目录请求频率限制"
+//            summary =
+//                "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
+//            entries = RATE_ARRAY
+//            entryValues = RATE_ARRAY
+//            setDefaultValue("15")
+//            setOnPreferenceChangeListener { _, newValue ->
+//                val rateLimit = newValue as String
+//                preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
+//                true
+//            }
+//        }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
             key = CHAPTER_API_RATE_PREF
-            title = "章节图片列表请求频率限制"
+            title = "章节图片请求频率限制"
             summary =
-                "此值影响向章节图片列表api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
+                "此值影响向章节图片api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
             setDefaultValue("15")
@@ -803,7 +805,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
-        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
+
+//        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
         private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"

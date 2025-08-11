@@ -55,7 +55,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val preferences: SharedPreferences = getPreferences()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
+//    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
     private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
     private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
     override val baseUrl = "https://" + DEFAULT_WEB_DOMAIN
@@ -237,28 +237,28 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return result
     }
 
-    private fun updateVersion(): Map<String, String> { // ktlint-disable no-unit-return
-        val results =
-            mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
-        try {
-            val response =
-                client.newCall(GET("$apiUrl/api/v3/system/appVersion/last", apiHeaders))
-                    .execute()
-            if (response.code == 200) {
-                val versionInfo =
-                    json.decodeFromStream<ResultDto<VersionDto>>(response.body.byteStream()).results.android
-                results["version"] = versionInfo.version!!
-                results["success"] = "true"
-                if (versionInfo.update) {
-                    preferences.edit().putString(VERSION_PREF, versionInfo.version).apply()
-                    apiHeaders = apiHeaders.newBuilder().setVersion(versionInfo.version).build()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("CopyMangas", "failed to update version", e)
-        }
-        return results
-    }
+//    private fun updateVersion(): Map<String, String> { // ktlint-disable no-unit-return
+//        val results =
+//            mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
+//        try {
+//            val response =
+//                client.newCall(GET("$apiUrl/api/v3/system/appVersion/last", apiHeaders))
+//                    .execute()
+//            if (response.code == 200) {
+//                val versionInfo =
+//                    json.decodeFromStream<ResultDto<VersionDto>>(response.body.byteStream()).results.android
+//                results["version"] = versionInfo.version!!
+//                results["success"] = "true"
+//                if (versionInfo.update) {
+//                    preferences.edit().putString(VERSION_PREF, versionInfo.version).apply()
+//                    apiHeaders = apiHeaders.newBuilder().setVersion(versionInfo.version).build()
+//                }
+//            }
+//        } catch (e: Exception) {
+//            Log.e("CopyMangas", "failed to update version", e)
+//        }
+//        return results
+//    }
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
@@ -316,9 +316,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             // builder.addQueryParameter("q_type", "").addQueryParameter("platform", "3")
-            if (!alwaysUseToken) {
-                headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
-            }
+            headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -604,25 +602,25 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = ALWAYS_USE_TOKEN_PREF
-            title = "始终使用Token"
-            summary =
-                "如果启用，将始终使用Token来请求api，有可能由于频繁的请求api而被封号；如果禁用，则只在搜索时使用Token"
-            setDefaultValue(false)
-            setOnPreferenceChangeListener { _, newValue ->
-                alwaysUseToken = newValue as Boolean
-                preferences.edit().putBoolean(ALWAYS_USE_TOKEN_PREF, alwaysUseToken).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(
-                    if (alwaysUseToken) {
-                        preferences.getString(TOKEN_PREF, "")!!
-                    } else {
-                        ""
-                    },
-                ).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
+//        SwitchPreferenceCompat(screen.context).apply {
+//            key = ALWAYS_USE_TOKEN_PREF
+//            title = "始终使用Token"
+//            summary =
+//                "如果启用，将始终使用Token来请求api，有可能由于频繁的请求api而被封号；如果禁用，则只在搜索时使用Token"
+//            setDefaultValue(false)
+//            setOnPreferenceChangeListener { _, newValue ->
+//                alwaysUseToken = newValue as Boolean
+//                preferences.edit().putBoolean(ALWAYS_USE_TOKEN_PREF, alwaysUseToken).apply()
+//                apiHeaders = apiHeaders.newBuilder().setToken(
+//                    if (alwaysUseToken) {
+//                        preferences.getString(TOKEN_PREF, "")!!
+//                    } else {
+//                        ""
+//                    },
+//                ).build()
+//                true
+//            }
+//        }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
             key = USERNAME_PREF
@@ -656,13 +654,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 val token = newValue as String
                 fetchTokenState = 0
                 preferences.edit().putString(TOKEN_PREF, token).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(
-                    if (alwaysUseToken) {
-                        preferences.getString(TOKEN_PREF, "")!!
-                    } else {
-                        ""
-                    },
-                ).build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -714,13 +705,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             val results = fetchToken(username, password)
                             if (results["success"] != "false") {
                                 preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                                apiHeaders = apiHeaders.newBuilder().setToken(
-                                    if (alwaysUseToken) {
-                                        results["token"]!!
-                                    } else {
-                                        ""
-                                    },
-                                ).build()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
                                 showToast(screen.context, "Token获取失败，${results["message"]}")
@@ -740,43 +724,43 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = "update_version"
-            title = "更新官方应用版本号"
-            summary = "点击此选项尝试更新官方应用的版本号"
-            setDefaultValue(false)
-            setOnPreferenceChangeListener { _, _ ->
-                Toast.makeText(screen.context, "开始更新", Toast.LENGTH_SHORT).show()
-                fetchTokenState = 1
-                thread {
-                    try {
-                        val r = updateVersion()
-                        if (r["success"] == "false") {
-                            showToast(screen.context, "失败:" + r["message"])
-                        } else {
-                            showToast(screen.context, r["version"]!!)
-                        }
-                    } catch (e: Throwable) {
-                        fetchTokenState = 0
-                        Log.e("CopyMangas", "failed to update version", e)
-                    }
-                }
-                false
-            }
-        }.let { screen.addPreference(it) }
+//        SwitchPreferenceCompat(screen.context).apply {
+//            key = "update_version"
+//            title = "更新官方应用版本号"
+//            summary = "点击此选项尝试更新官方应用的版本号"
+//            setDefaultValue(false)
+//            setOnPreferenceChangeListener { _, _ ->
+//                Toast.makeText(screen.context, "开始更新", Toast.LENGTH_SHORT).show()
+//                fetchTokenState = 1
+//                thread {
+//                    try {
+//                        val r = updateVersion()
+//                        if (r["success"] == "false") {
+//                            showToast(screen.context, "失败:" + r["message"])
+//                        } else {
+//                            showToast(screen.context, r["version"]!!)
+//                        }
+//                    } catch (e: Throwable) {
+//                        fetchTokenState = 0
+//                        Log.e("CopyMangas", "failed to update version", e)
+//                    }
+//                }
+//                false
+//            }
+//        }.let { screen.addPreference(it) }
 
-        EditTextPreference(screen.context).apply {
-            key = VERSION_PREF
-            title = "官方应用版本号"
-            summary = "高级设置，不建议修改"
-            setDefaultValue(DEFAULT_VERSION)
-            setOnPreferenceChangeListener { _, newValue ->
-                val version = newValue as String
-                preferences.edit().putString(VERSION_PREF, version).apply()
-                apiHeaders = apiHeaders.newBuilder().setVersion(version).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
+//        EditTextPreference(screen.context).apply {
+//            key = VERSION_PREF
+//            title = "官方版本号"
+//            summary = "高级设置，不建议修改"
+//            setDefaultValue(DEFAULT_VERSION)
+//            setOnPreferenceChangeListener { _, newValue ->
+//                val version = newValue as String
+//                preferences.edit().putString(VERSION_PREF, version).apply()
+//                apiHeaders = apiHeaders.newBuilder().set("version", version).build()
+//                true
+//            }
+//        }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
             key = BROWSER_USER_AGENT_PREF
@@ -801,12 +785,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
 //        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
-        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
+//        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"
         private const val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
-        private const val VERSION_PREF = "versionZ"
 
+//        private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
         private const val DEFAULT_API_DOMAIN = "api.copy2000.online"

@@ -37,9 +37,6 @@ import rx.Single
 import uy.kohesive.injekt.injectLazy
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
@@ -55,6 +52,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val preferences: SharedPreferences = getPreferences()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
+
 //    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
     private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
     private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
@@ -132,11 +130,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         },
     )
 
-    private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
-    private fun Headers.Builder.setVersion(version: String) =
-        set("version", version).set("Referer", "com.copymanga.app-" + version)
-            .set("User-Agent", "COPY/" + version)
-
     private fun Headers.Builder.setToken(token: String = "") = set(
         "authorization",
         if (token.isNotBlank()) {
@@ -146,37 +139,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         },
     )
 
-    private val dtFormat = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault())
-    private fun randomString(length: Int): String {
-        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-        val random = SecureRandom()
-        return (1..length)
-            .map { chars[random.nextInt(chars.length)] }
-            .joinToString("")
-    }
     private var apiHeaders = Headers.Builder()
-        // .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
-        .add("source", "copyApp")
-        .setWebp(preferences.getBoolean(WEBP_PREF, true))
-        .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
-        .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .setToken(
-            if (alwaysUseToken) {
-                preferences.getString(TOKEN_PREF, "")!!
-            } else {
-                ""
-            },
-        )
-        .add("platform", "3")
-        .add("dt", dtFormat.format(Date()))
-        .add("deviceinfo", randomString((5..20).random()))
-        .add("device", randomString((5..20).random()))
-        .add("pseudoid", randomString((10..20).random()))
-        .add("umstring", randomString(32))
-        .build()
-
-    override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
+        .setWebp(preferences.getBoolean(WEBP_PREF, true))
+        .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
+        .setToken("")
+        .add("version", "2025.08.08")
+        .add("platform", "1")
+        .build()
 
     private fun fetchToken(username: String, password: String): Map<String, String> {
         val results =
@@ -305,7 +275,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
-            // builder.addQueryParameter("q_type", "").addQueryParameter("platform", "3")
+            // builder.addQueryParameter("q_type", "")
             headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
         } else {
             builder.addPathSegments("api/v3/comics")
@@ -327,7 +297,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun getMangaUrl(manga: SManga): String = webUrl + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?in_mainland=true&request_id=${randomString(9)}&platform=3", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
 
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
@@ -344,7 +314,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         while (hasNextPage) {
             val response = client.newCall(
                 GET(
-                    "$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&in_mainland=true&request_id=${randomString(9)}&platform=3",
+                    "$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&_update=true",
                     apiHeaders,
                 ),
             ).execute()
@@ -380,7 +350,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
     override fun pageListRequest(chapter: SChapter) =
-        GET("$apiUrl/api/v3${chapter.url}?in_mainland=true&request_id=${randomString(9)}&platform=3", apiHeaders)
+        GET("$apiUrl/api/v3${chapter.url}?platform=1&_update=true", apiHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
@@ -399,9 +369,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun imageRequest(page: Page): Request {
         var imageUrl = page.imageUrl!!
         imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
-        val headers = Headers.Builder()
-            .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build()
-
         return GET(imageUrl, headers)
     }
 
@@ -760,6 +727,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             setOnPreferenceChangeListener { _, newValue ->
                 val userAgent = newValue as String
                 preferences.edit().putString(BROWSER_USER_AGENT_PREF, userAgent).apply()
+                apiHeaders = apiHeaders.newBuilder().setUserAgent(userAgent).build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -775,6 +743,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
 //        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
+
 //        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"
         private const val PASSWORD_PREF = "passwordZ"
@@ -783,14 +752,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 //        private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
-        private const val DEFAULT_API_DOMAIN = "api.copy2000.online"
+        private const val DEFAULT_API_DOMAIN = "api.2025copy.com"
         private const val DEFAULT_WEB_DOMAIN = "www.2025copy.com"
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
-        private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "2.3.0"
+
+//        private const val DEFAULT_VERSION = "2.3.0"
         private const val DEFAULT_BROWSER_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
         private const val CHAPTER_PAGE_SIZE = 100

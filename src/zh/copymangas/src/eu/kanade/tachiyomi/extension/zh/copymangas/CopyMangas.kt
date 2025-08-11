@@ -107,9 +107,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             chain.proceed(
                 chain.request()
                     .newBuilder()
+                    .removeHeader("max-age")
                     .removeHeader("cache-control")
                     .removeHeader("if-modified-since")
-                    .removeHeader("cookie")
                     .build(),
             )
         }

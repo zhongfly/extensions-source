@@ -103,16 +103,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override val client: OkHttpClient = network.client.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
-        .addNetworkInterceptor { chain ->
-            chain.proceed(
-                chain.request()
-                    .newBuilder()
-                    .removeHeader("max-age")
-                    .removeHeader("cache-control")
-                    .removeHeader("if-modified-since")
-                    .build(),
-            )
-        }
         .addInterceptor { chain ->
             val url = chain.request().url.toString()
             when {

@@ -52,11 +52,15 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val preferences: SharedPreferences = getPreferences()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
+    private var useHotmanga = preferences.getBoolean(USE_HOTMANGA_REF, false) // false = 拷贝，true = 热辣
 
 //    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
     private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
     private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
     override val baseUrl = "https://" + DEFAULT_WEB_DOMAIN
+
+    private var hotmangaApiUrl = getDomain(HOTMANGA_DOMAIN_PREF, DEFAULT_HOTMANGA_API_DOMAIN)
+    private var hotmangaWebUrl = getDomain(HOTMANGA_WEB_DOMAIN_PREF, DEFAULT_HOTMANGA_WEB_DOMAIN)
 
     private fun getDomain(pref: String, default: String): String {
         val domain = preferences.getString(pref, default)
@@ -67,8 +71,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
+    private fun getUrl(type: String): String {
+        return when (type) {
+            "api" -> if (useHotmanga) hotmangaApiUrl else apiUrl
+            "web" -> if (useHotmanga) hotmangaWebUrl else webUrl
+            else -> throw IllegalArgumentException("Unknown URL type: $type")
+        }
+    }
+
 //    private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
-    private val chapterRatelimitRegex = Regex("""/chapter2/""")
+    private val chapterRatelimitRegex = Regex("""/chapter2?/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
     private val trustManager = object : X509TrustManager {
@@ -165,7 +177,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("salt", salt)
                 .build()
             val headers = apiHeaders.newBuilder().setToken().build()
-            val response = client.newCall(POST("$apiUrl/api/v3/login", headers, formBody)).execute()
+            val response = client.newCall(POST("${getUrl("api")}/api/v3/login", headers, formBody)).execute()
             if (response.code != 200) {
                 results["message"] =
                     json.decodeFromStream<ResultMessageDto>(response.body.byteStream()).message
@@ -189,7 +201,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
                 .build()
-            val response = client.newCall(GET("$apiUrl/api/v3/member/info", headers)).execute()
+            val response = client.newCall(GET("${getUrl("api")}/api/v3/member/info", headers)).execute()
             result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
@@ -197,54 +209,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return result
     }
 
-//    private fun updateVersion(): Map<String, String> { // ktlint-disable no-unit-return
-//        val results =
-//            mutableMapOf<String, String>("success" to "false", "message" to "", "version" to "")
-//        try {
-//            val response =
-//                client.newCall(GET("$apiUrl/api/v3/system/appVersion/last", apiHeaders))
-//                    .execute()
-//            if (response.code == 200) {
-//                val versionInfo =
-//                    json.decodeFromStream<ResultDto<VersionDto>>(response.body.byteStream()).results.android
-//                results["version"] = versionInfo.version!!
-//                results["success"] = "true"
-//                if (versionInfo.update) {
-//                    preferences.edit().putString(VERSION_PREF, versionInfo.version).apply()
-//                    apiHeaders = apiHeaders.newBuilder().setVersion(versionInfo.version).build()
-//                }
-//            }
-//        } catch (e: Exception) {
-//            Log.e("CopyMangas", "failed to update version", e)
-//        }
-//        return results
-//    }
-
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-//        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
-//            val username = preferences.getString(USERNAME_PREF, "")!!
-//            val password = preferences.getString(PASSWORD_PREF, "")!!
-//            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-//                val results = fetchToken(username, password)
-//                if (results["success"] != "false") {
-//                    preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-//                    apiHeaders = apiHeaders.newBuilder().setToken(
-//                        if (alwaysUseToken) {
-//                            results["token"]!!
-//                        } else {
-//                            ""
-//                        },
-//                    ).build()
-//                }
-//            }
-//        }
     }
 
     override fun popularMangaRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
         return GET(
-            "$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=",
+            "${getUrl("api")}/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=",
             apiHeaders,
         )
     }
@@ -258,7 +230,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun latestUpdatesRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
         return GET(
-            "$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=",
+            "${getUrl("api")}/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=",
             apiHeaders,
         )
     }
@@ -268,7 +240,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val headersBuilder = apiHeaders.newBuilder()
         val offset = PAGE_SIZE * (page - 1)
-        val builder = apiUrl.toHttpUrl().newBuilder()
+        val builder = getUrl("api").toHttpUrl().newBuilder()
             .addQueryParameter("limit", "$PAGE_SIZE")
             .addQueryParameter("offset", "$offset")
         if (query.isNotBlank()) {
@@ -276,7 +248,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             // builder.addQueryParameter("q_type", "")
-            headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
+            headersBuilder.setToken(preferences.getString(if (useHotmanga) HOTMANGA_TOKEN_PREF else TOKEN_PREF, "")!!)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -294,10 +266,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
 
-    override fun getMangaUrl(manga: SManga): String = webUrl + manga.url
+    override fun getMangaUrl(manga: SManga) = getUrl("web") + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
+        GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
 
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
@@ -314,7 +286,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         while (hasNextPage) {
             val response = client.newCall(
                 GET(
-                    "$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&_update=true",
+                    "${getUrl("api")}/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&_update=true",
                     apiHeaders,
                 ),
             ).execute()
@@ -345,16 +317,25 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun chapterListParse(response: Response) =
         throw UnsupportedOperationException("Not used.")
 
-    override fun getChapterUrl(chapter: SChapter): String =
-        webUrl + chapter.url.replace("/chapter2/", "/chapter/")
+    override fun getChapterUrl(chapter: SChapter) = getUrl("web") + chapter.url.replace("/chapter2/", "/chapter/")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter) =
-        GET("$apiUrl/api/v3${chapter.url}?platform=1&_update=true", apiHeaders)
+    override fun pageListRequest(chapter: SChapter): Request {
+        val url = if (useHotmanga) {
+            "$hotmangaApiUrl/api/v3${chapter.url.replace("/chapter2/", "/chapter/")}"
+        } else {
+            "$apiUrl/api/v3${chapter.url}"
+        }
+        return GET("$url?platform=1&_update=true", apiHeaders)
+    }
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
         val orders = result.chapter.words
+        if (orders.isNullOrEmpty()) {
+            // 如果没有words，则直接返回按索引排序的图片列表
+            return result.chapter.contents.mapIndexed { i, it -> Page(i, imageUrl = it.url) }
+        }
         val pageList = result.chapter.contents.withIndex()
             .sortedBy { orders[it.index] }.map { it.value }
         return pageList.mapIndexed { i, it ->
@@ -424,7 +405,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             try {
                 val response = client.newCall(
                     GET(
-                        "$apiUrl/api/v3/theme/comic/count?limit=500&offset=0&free_type=1",
+                        "${getUrl("api")}/api/v3/theme/comic/count?limit=500&offset=0&free_type=1",
                         apiHeaders,
                     ),
                 ).execute()
@@ -445,33 +426,59 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val domainRegex = Regex("""(?<=://|^)([a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)""")
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {
-            key = DOMAIN_PREF
+            key = if (useHotmanga) HOTMANGA_DOMAIN_PREF else DOMAIN_PREF
             title = "API域名"
-            summary = "API请求使用的域名，默认为$DEFAULT_API_DOMAIN"
+            summary = "API请求使用的域名，拷贝默认为$DEFAULT_API_DOMAIN，热辣默认为$DEFAULT_HOTMANGA_API_DOMAIN"
             setDefaultValue(DEFAULT_API_DOMAIN)
             setOnPreferenceChangeListener { _, newValue ->
+                var ref = DOMAIN_PREF
+                var defaultDomain = DEFAULT_API_DOMAIN
+                if (useHotmanga) {
+                    ref = HOTMANGA_DOMAIN_PREF
+                    defaultDomain = DEFAULT_HOTMANGA_API_DOMAIN
+                }
+
                 var domain = domainRegex.find(newValue as String)?.value
                 if (domain.isNullOrBlank()) {
-                    domain = DEFAULT_API_DOMAIN
+                    domain = defaultDomain
                 }
-                preferences.edit().putString(DOMAIN_PREF, domain).commit()
+                preferences.edit().putString(ref, domain).commit()
                 apiUrl = "https://$domain"
                 true
             }
         }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
-            key = WEB_DOMAIN_PREF
+            key = if (useHotmanga) HOTMANGA_WEB_DOMAIN_PREF else WEB_DOMAIN_PREF
             title = "网页版域名"
-            summary = "webview中使用的域名，默认为$DEFAULT_WEB_DOMAIN"
+            summary = "webview中使用的域名，拷贝默认为$DEFAULT_WEB_DOMAIN，热辣默认为$DEFAULT_HOTMANGA_WEB_DOMAIN"
             setDefaultValue(DEFAULT_WEB_DOMAIN)
             setOnPreferenceChangeListener { _, newValue ->
+                var ref = WEB_DOMAIN_PREF
+                var defaultDomain = DEFAULT_WEB_DOMAIN
+                if (useHotmanga) {
+                    ref = HOTMANGA_WEB_DOMAIN_PREF
+                    defaultDomain = DEFAULT_HOTMANGA_WEB_DOMAIN
+                }
+
                 var domain = domainRegex.find(newValue as String)?.value
                 if (domain.isNullOrBlank()) {
-                    domain = DEFAULT_WEB_DOMAIN
+                    domain = defaultDomain
                 }
-                preferences.edit().putString(WEB_DOMAIN_PREF, domain).commit()
+                preferences.edit().putString(ref, domain).commit()
                 webUrl = "https://$domain"
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = USE_HOTMANGA_REF
+            title = "切换为热辣漫画"
+            summary = "关闭时适配拷贝漫画，开启时适配热辣漫画\n切换后，请重启应用再修改其他设置"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                useHotmanga = newValue as Boolean
+                preferences.edit().putBoolean(USE_HOTMANGA_REF, useHotmanga).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -580,29 +587,31 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 //        }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
-            key = USERNAME_PREF
+            key = if (useHotmanga) HOTMANGA_USERNAME_PREF else USERNAME_PREF
             title = "用户名"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 fetchTokenState = 0
-                preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
+                val usernameRef = if (useHotmanga) HOTMANGA_USERNAME_PREF else USERNAME_PREF
+                preferences.edit().putString(usernameRef, newValue as String).commit()
                 true
             }
         }.let(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
-            key = PASSWORD_PREF
+            key = if (useHotmanga) HOTMANGA_PASSWORD_PREF else PASSWORD_PREF
             title = "密码"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 fetchTokenState = 0
-                preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
+                val passwordRef = if (useHotmanga) HOTMANGA_PASSWORD_PREF else PASSWORD_PREF
+                preferences.edit().putString(passwordRef, newValue as String).commit()
                 true
             }
         }.let(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
-            key = TOKEN_PREF
+            key = if (useHotmanga) HOTMANGA_TOKEN_PREF else TOKEN_PREF
             title = "用户登录Token"
             summary =
                 "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
@@ -610,7 +619,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             setOnPreferenceChangeListener { _, newValue ->
                 val token = newValue as String
                 fetchTokenState = 0
-                preferences.edit().putString(TOKEN_PREF, token).apply()
+                val tokenRef = if (useHotmanga) HOTMANGA_TOKEN_PREF else TOKEN_PREF
+                preferences.edit().putString(tokenRef, token).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -621,6 +631,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "填写用户名及密码设置后，点击此选项尝试登录以更新Token"
             setDefaultValue(false)
             setOnPreferenceChangeListener { _, _ ->
+                val usernameRef = if (useHotmanga) HOTMANGA_USERNAME_PREF else USERNAME_PREF
+                val passwordRef = if (useHotmanga) HOTMANGA_PASSWORD_PREF else PASSWORD_PREF
+                val tokenRef = if (useHotmanga) HOTMANGA_TOKEN_PREF else TOKEN_PREF
+
                 if (fetchTokenState == 1) {
                     Toast.makeText(screen.context, "正在尝试登录，请勿反复点击", Toast.LENGTH_SHORT)
                         .show()
@@ -644,8 +658,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     ).show()
                     // return@setOnPreferenceChangeListener false
                 }
-                val username = preferences.getString(USERNAME_PREF, "")!!
-                val password = preferences.getString(PASSWORD_PREF, "")!!
+                val username = preferences.getString(usernameRef, "")!!
+                val password = preferences.getString(passwordRef, "")!!
                 if (username.isNullOrBlank() || password.isNullOrBlank()) {
                     Toast.makeText(
                         screen.context,
@@ -658,10 +672,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-                        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
+                        if (!verifyToken(preferences.getString(tokenRef, "")!!)) {
                             val results = fetchToken(username, password)
                             if (results["success"] != "false") {
-                                preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
+                                preferences.edit().putString(tokenRef, results["token"]!!).apply()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
                                 showToast(screen.context, "Token获取失败，${results["message"]}")
@@ -681,44 +695,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-//        SwitchPreferenceCompat(screen.context).apply {
-//            key = "update_version"
-//            title = "更新官方应用版本号"
-//            summary = "点击此选项尝试更新官方应用的版本号"
-//            setDefaultValue(false)
-//            setOnPreferenceChangeListener { _, _ ->
-//                Toast.makeText(screen.context, "开始更新", Toast.LENGTH_SHORT).show()
-//                fetchTokenState = 1
-//                thread {
-//                    try {
-//                        val r = updateVersion()
-//                        if (r["success"] == "false") {
-//                            showToast(screen.context, "失败:" + r["message"])
-//                        } else {
-//                            showToast(screen.context, r["version"]!!)
-//                        }
-//                    } catch (e: Throwable) {
-//                        fetchTokenState = 0
-//                        Log.e("CopyMangas", "failed to update version", e)
-//                    }
-//                }
-//                false
-//            }
-//        }.let { screen.addPreference(it) }
-
-//        EditTextPreference(screen.context).apply {
-//            key = VERSION_PREF
-//            title = "官方版本号"
-//            summary = "高级设置，不建议修改"
-//            setDefaultValue(DEFAULT_VERSION)
-//            setOnPreferenceChangeListener { _, newValue ->
-//                val version = newValue as String
-//                preferences.edit().putString(VERSION_PREF, version).apply()
-//                apiHeaders = apiHeaders.newBuilder().set("version", version).build()
-//                true
-//            }
-//        }.let { screen.addPreference(it) }
-
         EditTextPreference(screen.context).apply {
             key = BROWSER_USER_AGENT_PREF
             title = "浏览器User Agent"
@@ -736,6 +712,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     companion object {
         private const val DOMAIN_PREF = "api_domainZ"
         private const val WEB_DOMAIN_PREF = "web_domainZ"
+        private const val HOTMANGA_DOMAIN_PREF = "hotmanga_domainZ"
+        private const val HOTMANGA_WEB_DOMAIN_PREF = "hotmanga_web_domainZ"
         private const val OVERSEAS_CDN_PREF = "changeCDNZ"
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
@@ -746,14 +724,21 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
 //        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"
+        private const val HOTMANGA_USERNAME_PREF = "hotmangaUsernameZ"
         private const val PASSWORD_PREF = "passwordZ"
+        private const val HOTMANGA_PASSWORD_PREF = "hotmangaPasswordZ"
         private const val TOKEN_PREF = "tokenZ"
+        private const val HOTMANGA_TOKEN_PREF = "hotmangaTokenZ"
+        private const val USE_HOTMANGA_REF = "useHotmangaZ"
 
 //        private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
         private const val DEFAULT_API_DOMAIN = "api.2025copy.com"
         private const val DEFAULT_WEB_DOMAIN = "www.2025copy.com"
+        private const val DEFAULT_HOTMANGA_API_DOMAIN = "mapi.hotmangasd.com"
+        private const val DEFAULT_HOTMANGA_WEB_DOMAIN = "www.relamanhua.org"
+
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()
 

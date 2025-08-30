@@ -23,6 +23,9 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.serializer
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -30,8 +33,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
+import okhttp3.ResponseBody
 import rx.Observable
 import rx.Single
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -44,12 +50,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val lang = "zh"
     override val supportsLatest = true
 
+    val json: Json = Injekt.get()
     private val preferences by getPreferencesLazy()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var useHotmanga = preferences.getBoolean(USE_HOTMANGA_REF, false) // false = 拷贝，true = 热辣
 
-//    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
     private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
     private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
     override val baseUrl = "https://" + DEFAULT_WEB_DOMAIN
@@ -74,7 +80,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
-//    private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2?/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
@@ -93,12 +98,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         init(null, arrayOf(trustManager), SecureRandom())
     }
 
-//    private val groupInterceptor = RateLimitInterceptor(
-//        null,
-//        preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(),
-//        61,
-//        TimeUnit.SECONDS,
-//    )
     private val chapterInterceptor = RateLimitInterceptor(
         null,
         preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(),
@@ -106,16 +105,34 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         TimeUnit.SECONDS,
     )
 
+    private fun responseIntercepter(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        if (!request.url.toString().contains(getUrl("api"))) return chain.proceed(request)
+
+        val response = chain.proceed(request)
+        if (!response.isSuccessful) return response
+        if (response.header("Content-Type") != "application/json") {
+            throw Exception("返回数据错误，不是json")
+        } else {
+            val result = response.peekBody(Long.MAX_VALUE).parseAs<ResultMessageDto>()
+            if (result.code != 200) {
+                throw Exception("返回数据错误:${result.message}")
+            }
+            return response
+        }
+    }
+
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
         .addInterceptor { chain ->
             val url = chain.request().url.toString()
             when {
-//                url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
                 url.contains(chapterRatelimitRegex) -> chapterInterceptor.intercept(chain)
                 else -> chain.proceed(chain.request())
             }
         }
+        .addInterceptor(CommentsInterceptor)
+        .addInterceptor(::responseIntercepter)
         .build()
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
@@ -217,7 +234,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val page: ListDto<MangaDto> = response.parseAs()
+        val page = response.parseAs<ResultDto<ListDto<MangaDto>>>().results
         val hasNextPage = page.offset + page.limit < page.total
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
@@ -256,7 +273,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val page: ListDto<MangaDto> = response.parseAs()
+        val page = response.parseAs<ResultDto<ListDto<MangaDto>>>().results
         val hasNextPage = page.offset + page.limit < page.total
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
@@ -267,7 +284,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
 
     override fun mangaDetailsParse(response: Response): SManga =
-        response.parseAs<MangaWrapperDto>().toSMangaDetails()
+        response.parseAs<ResultDto<MangaWrapperDto>>().results.toSMangaDetails()
 
     private fun ArrayList<SChapter>.fetchChapterGroup(manga: String, key: String, name: String) {
         val result = ArrayList<SChapter>(0)
@@ -285,7 +302,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     apiHeaders,
                 ),
             ).execute()
-            val chapters: ListDto<ChapterDto> = response.parseAs()
+            val chapters = response.parseAs<ResultDto<ListDto<ChapterDto>>>().results
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(groupName) }
             offset += CHAPTER_PAGE_SIZE
@@ -298,7 +315,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         Single.create<List<SChapter>> {
             val result = ArrayList<SChapter>()
             val response = client.newCall(mangaDetailsRequest(manga)).execute()
-            val groups = response.parseAs<MangaWrapperDto>().groups!!.values
+            val groups = response.parseAs<ResultDto<MangaWrapperDto>>().results.groups!!.values
             val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
             for (group in groups) {
                 result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
@@ -325,17 +342,17 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val result: ChapterPageListWrapperDto = response.parseAs()
+        val result = response.parseAs<ResultDto<ChapterPageListWrapperDto>>().results
+        val images = result.chapter.contents
         val orders = result.chapter.words
-        if (orders.isNullOrEmpty()) {
-            // 如果没有words，则直接返回按索引排序的图片列表
-            return result.chapter.contents.mapIndexed { i, it -> Page(i, imageUrl = it.url) }
+        val pageList = if (orders.isNullOrEmpty()) {
+            images.mapIndexedTo(ArrayList(images.size + 1)) { i, it -> Page(i, imageUrl = it.url) }
+        } else {
+            images.withIndex().sortedBy { orders[it.index] }.map { it.value }.mapIndexedTo(ArrayList(images.size + 1)) { i, it ->
+                Page(i, imageUrl = it.url)
+            }
         }
-        val pageList = result.chapter.contents.withIndex()
-            .sortedBy { orders[it.index] }.map { it.value }
-        return pageList.mapIndexed { i, it ->
-            Page(i, imageUrl = it.url)
-        }
+        return pageList
     }
 
     override fun imageUrlParse(response: Response) =
@@ -347,6 +364,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
         return GET(imageUrl, headers)
     }
+
+    inline fun <reified T> ResponseBody.parseAs(): T = json.decodeFromStream(serializer(), this.byteStream())
 
     private inline fun showToast(
         context: Context,
@@ -432,7 +451,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 apiUrl = "https://$domain"
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
             key = if (useHotmanga) HOTMANGA_WEB_DOMAIN_PREF else WEB_DOMAIN_PREF
@@ -455,7 +474,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 webUrl = "https://$domain"
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = USE_HOTMANGA_REF
@@ -467,7 +486,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 preferences.edit().putBoolean(USE_HOTMANGA_REF, useHotmanga).apply()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = OVERSEAS_CDN_PREF
@@ -480,7 +499,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         ListPreference(screen.context).apply {
             key = QUALITY_PREF
@@ -494,7 +513,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 preferences.edit().putString(QUALITY_PREF, imageQuality).apply()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = WEBP_PREF
@@ -507,22 +526,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
                 true
             }
-        }.let { screen.addPreference(it) }
-
-//        ListPreference(screen.context).apply {
-//            key = GROUP_API_RATE_PREF
-//            title = "章节目录请求频率限制"
-//            summary =
-//                "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
-//            entries = RATE_ARRAY
-//            entryValues = RATE_ARRAY
-//            setDefaultValue("15")
-//            setOnPreferenceChangeListener { _, newValue ->
-//                val rateLimit = newValue as String
-//                preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
-//                true
-//            }
-//        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         ListPreference(screen.context).apply {
             key = CHAPTER_API_RATE_PREF
@@ -537,7 +541,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 preferences.edit().putString(CHAPTER_API_RATE_PREF, rateLimit).apply()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = SC_TITLE_PREF
@@ -550,27 +554,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 MangaDto.convertToSc = convertToSc
                 true
             }
-        }.let { screen.addPreference(it) }
-
-//        SwitchPreferenceCompat(screen.context).apply {
-//            key = ALWAYS_USE_TOKEN_PREF
-//            title = "始终使用Token"
-//            summary =
-//                "如果启用，将始终使用Token来请求api，有可能由于频繁的请求api而被封号；如果禁用，则只在搜索时使用Token"
-//            setDefaultValue(false)
-//            setOnPreferenceChangeListener { _, newValue ->
-//                alwaysUseToken = newValue as Boolean
-//                preferences.edit().putBoolean(ALWAYS_USE_TOKEN_PREF, alwaysUseToken).apply()
-//                apiHeaders = apiHeaders.newBuilder().setToken(
-//                    if (alwaysUseToken) {
-//                        preferences.getString(TOKEN_PREF, "")!!
-//                    } else {
-//                        ""
-//                    },
-//                ).build()
-//                true
-//            }
-//        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
             key = if (useHotmanga) HOTMANGA_USERNAME_PREF else USERNAME_PREF
@@ -609,7 +593,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 preferences.edit().putString(tokenRef, token).apply()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = "update_token"
@@ -679,7 +663,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 }
                 false
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
             key = BROWSER_USER_AGENT_PREF
@@ -692,7 +676,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 apiHeaders = apiHeaders.newBuilder().setUserAgent(userAgent).build()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let(screen::addPreference)
     }
 
     companion object {
@@ -705,10 +689,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
 
-//        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
 
-//        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"
         private const val HOTMANGA_USERNAME_PREF = "hotmangaUsernameZ"
         private const val PASSWORD_PREF = "passwordZ"

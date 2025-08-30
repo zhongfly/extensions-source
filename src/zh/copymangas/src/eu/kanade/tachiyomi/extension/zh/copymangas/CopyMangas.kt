@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension.zh.copymangas
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -22,9 +21,8 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
-import keiyoushi.utils.getPreferences
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
+import keiyoushi.utils.getPreferencesLazy
+import keiyoushi.utils.parseAs
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -34,7 +32,6 @@ import okhttp3.RequestBody
 import okhttp3.Response
 import rx.Observable
 import rx.Single
-import uy.kohesive.injekt.injectLazy
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -47,9 +44,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val lang = "zh"
     override val supportsLatest = true
 
-    private val json: Json by injectLazy()
-
-    private val preferences: SharedPreferences = getPreferences()
+    private val preferences by getPreferencesLazy()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var useHotmanga = preferences.getBoolean(USE_HOTMANGA_REF, false) // false = 拷贝，true = 热辣
@@ -111,7 +106,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         TimeUnit.SECONDS,
     )
 
-    override val client: OkHttpClient = network.client.newBuilder()
+    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
         .addInterceptor { chain ->
             val url = chain.request().url.toString()
@@ -180,10 +175,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val response = client.newCall(POST("${getUrl("api")}/api/v3/login", headers, formBody)).execute()
             if (response.code != 200) {
                 results["message"] =
-                    json.decodeFromStream<ResultMessageDto>(response.body.byteStream()).message
+                    response.parseAs<ResultMessageDto>().message
             } else {
                 results["token"] =
-                    json.decodeFromStream<ResultDto<TokenDto>>(response.body.byteStream()).results.token
+                    response.parseAs<ResultDto<TokenDto>>().results.token
                 results["success"] = "true"
             }
         } catch (e: Exception) {
@@ -351,15 +346,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         var imageUrl = page.imageUrl!!
         imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
         return GET(imageUrl, headers)
-    }
-
-    private inline fun <reified T> Response.parseAs(): T = use {
-        if (header("Content-Type") != "application/json") {
-            throw Exception("返回数据错误，不是json")
-        } else if (code != 200) {
-            throw Exception(json.decodeFromStream<ResultMessageDto>(body.byteStream()).message)
-        }
-        json.decodeFromStream<ResultDto<T>>(body.byteStream()).results
     }
 
     private inline fun showToast(

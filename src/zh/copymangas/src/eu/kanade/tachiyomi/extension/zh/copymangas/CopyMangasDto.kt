@@ -105,3 +105,8 @@ class ResultMessageDto(val code: Int, val message: String)
 
 @Serializable
 class TokenDto(val token: String)
+
+@Serializable
+class CommentDto(
+    val comment: String,
+)

@@ -29,6 +29,7 @@ import kotlinx.serialization.serializer
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -352,6 +353,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 Page(i, imageUrl = it.url)
             }
         }
+        if (preferences.getBoolean(COMMENTS_PREF, false)) {
+            val chapterId = response.request.url.pathSegments.last()
+            pageList.add(
+                Page(
+                    pageList.size,
+                    url = COMMENTS_FLAG,
+                    imageUrl = chapterCommentsUrl(chapterId),
+                ),
+            )
+        }
         return pageList
     }
 
@@ -361,9 +372,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
     override fun imageRequest(page: Page): Request {
         var imageUrl = page.imageUrl!!
+        if (page.url == COMMENTS_FLAG) {
+            return GET(imageUrl, apiHeaders).newBuilder().tag(String::class, COMMENTS_FLAG).build()
+        }
         imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
         return GET(imageUrl, headers)
     }
+
+    private fun chapterCommentsUrl(chapterId: String) = "$apiUrl/api/v3/roasts?chapter_id=$chapterId&limit=30&offset=0&_update=true"
 
     inline fun <reified T> ResponseBody.parseAs(): T = json.decodeFromStream(serializer(), this.byteStream())
 
@@ -556,6 +572,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let(screen::addPreference)
 
+        SwitchPreferenceCompat(screen.context).apply {
+            key = COMMENTS_PREF
+            title = "章末吐槽页"
+            summary = "修改后，已加载的章节需要清除章节缓存才能生效。"
+            setDefaultValue(false)
+        }.let(screen::addPreference)
+
         EditTextPreference(screen.context).apply {
             key = if (useHotmanga) HOTMANGA_USERNAME_PREF else USERNAME_PREF
             title = "用户名"
@@ -688,6 +711,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
+        private const val COMMENTS_PREF = "comments"
 
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
 
@@ -716,5 +740,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val PAGE_SIZE = 20
         private const val CHAPTER_PAGE_SIZE = 100
+
+        const val COMMENTS_FLAG = "COMMENTS"
     }
 }

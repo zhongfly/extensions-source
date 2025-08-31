@@ -109,4 +109,5 @@ class TokenDto(val token: String)
 @Serializable
 class CommentDto(
     val comment: String,
+    val user_name: String,
 )

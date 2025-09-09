@@ -65,7 +65,7 @@ class ChapterDto(
 }
 
 @Serializable
-class KeywordDto(val name: String, val path_word: String) {
+class KeywordDto(val name: String, val path_word: String, val count: Int?) {
     fun toParam() = Param(ChineseUtils.toSimplified(name), path_word)
 }
 
@@ -88,6 +88,9 @@ class UrlDto(val url: String)
 
 @Serializable
 class ChapterPageListWrapperDto(val chapter: ChapterPageListDto)
+
+@Serializable
+class RanksListWrapperDto(val comic: MangaDto)
 
 @Serializable
 class ListDto<T>(

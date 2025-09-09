@@ -44,3 +44,34 @@ private val SORT_VALUES = arrayOf(
     Param("更新时间", "-datetime_updated"),
     Param("更新时间(逆序)", "datetime_updated"),
 )
+
+class RankingGroup : Filter.Group<Filter<*>>(
+    "排行榜（搜索文本时无效）",
+    listOf<Filter<*>>(
+        TypeFilter(),
+        DateFilter(),
+    ),
+) {
+    private class DateFilter : CopyMangaFilter(
+        "时间",
+        "date_type",
+        arrayOf(
+            Param("今日", "day"),
+            Param("近七天", "week"),
+            Param("近三十天", "month"),
+            Param("总榜单", "total"),
+        ),
+    )
+}
+
+class TypeFilter : CopyMangaFilter(
+    "类型",
+    "audience_type",
+    arrayOf(
+        Param("不查看排行榜", ""),
+        Param("最新上架", ""),
+        Param("男频", "male"),
+        Param("女频", "female"),
+
+    ),
+)

@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.Json
@@ -256,17 +257,35 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val builder = getUrl("api").toHttpUrl().newBuilder()
             .addQueryParameter("limit", "$PAGE_SIZE")
             .addQueryParameter("offset", "$offset")
+
         if (query.isNotBlank()) {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
-            filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
+            filters.firstInstanceOrNull<SearchFilter>()?.addQuery(builder)
             // builder.addQueryParameter("q_type", "")
             headersBuilder.setToken(preferences.getString(if (useHotmanga) HOTMANGA_TOKEN_PREF else TOKEN_PREF, "")!!)
         } else {
-            builder.addPathSegments("api/v3/comics")
-            filters.filterIsInstance<CopyMangaFilter>().forEach {
-                if (it !is SearchFilter) {
-                    it.addQuery(builder)
+            val ranking = filters.firstInstanceOrNull<RankingGroup>()
+            if (ranking != null && (ranking.state[0] as TypeFilter).state != 0) {
+                val rankType = (ranking.state[0] as TypeFilter).state
+                if (rankType != 1) {
+                    // 排行榜
+                    builder.addPathSegments("api/v3/ranks")
+                        .addQueryParameter("type", "1")
+                    ranking.state.filterIsInstance<CopyMangaFilter>().forEach {
+                        it.addQuery(builder)
+                    }
+                } else {
+                    // 最新上架
+                    builder.addPathSegments("api/v3/update/newest")
+                }
+            } else {
+                // 分类/发现
+                builder.addPathSegments("api/v3/comics")
+                filters.filterIsInstance<CopyMangaFilter>().forEach {
+                    if (it !is SearchFilter) {
+                        it.addQuery(builder)
+                    }
                 }
             }
         }
@@ -274,9 +293,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val page = response.parseAs<ResultDto<ListDto<MangaDto>>>().results
+        val page = if (response.request.url.pathSegments.last() != "comics") {
+            response.parseAs<ResultDto<ListDto<RanksListWrapperDto>>>().results
+        } else {
+            response.parseAs<ResultDto<ListDto<MangaDto>>>().results
+        }
+
+        val mangas = page.list.map {
+            if (it is RanksListWrapperDto) it.comic.toSManga() else (it as MangaDto).toSManga()
+        }
         val hasNextPage = page.offset + page.limit < page.total
-        return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
+
+        return MangasPage(mangas, hasNextPage)
     }
 
     override fun getMangaUrl(manga: SManga) = getUrl("web") + manga.url
@@ -410,6 +438,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return FilterList(
             SearchFilter(),
             Filter.Separator(),
+            RankingGroup(),
+            Filter.Separator(),
             Filter.Header("分类（搜索文本时无效）"),
             genreFilter,
             TopFilter(),
@@ -430,7 +460,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                         apiHeaders,
                     ),
                 ).execute()
-                val list = response.parseAs<ListDto<KeywordDto>>().list.sortedBy { it.name }
+                val list = response.parseAs<ResultDto<ListDto<KeywordDto>>>().results.list.filter { it.count != null && it.count != 0 }.sortedBy { it.name }
                 val result = ArrayList<Param>(list.size + 1).apply { add(Param("全部", "")) }
                 genres = list.mapTo(result) { it.toParam() }.toTypedArray()
             } catch (e: Exception) {

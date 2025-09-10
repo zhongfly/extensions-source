@@ -293,10 +293,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val page = if (response.request.url.pathSegments.last() != "comics") {
-            response.parseAs<ResultDto<ListDto<RanksListWrapperDto>>>().results
-        } else {
+        val page = if (response.request.url.pathSegments.last().startsWith("comic")) {
             response.parseAs<ResultDto<ListDto<MangaDto>>>().results
+        } else {
+            response.parseAs<ResultDto<ListDto<RanksListWrapperDto>>>().results
         }
 
         val mangas = page.list.map {

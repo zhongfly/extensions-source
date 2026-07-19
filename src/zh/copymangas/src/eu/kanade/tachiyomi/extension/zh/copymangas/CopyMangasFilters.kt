@@ -5,8 +5,7 @@ import okhttp3.HttpUrl
 
 class Param(val name: String, val value: String)
 
-open class CopyMangaFilter(name: String, private val key: String, private val params: Array<Param>) :
-    Filter.Select<String>(name, params.map { it.name }.toTypedArray()) {
+open class CopyMangaFilter(name: String, private val key: String, private val params: Array<Param>) : Filter.Select<String>(name, params.map { it.name }.toTypedArray()) {
     fun addQuery(builder: HttpUrl.Builder) {
         val param = params[state].value
         if (param.isNotEmpty()) {
@@ -45,33 +44,36 @@ private val SORT_VALUES = arrayOf(
     Param("更新时间(逆序)", "datetime_updated"),
 )
 
-class RankingGroup : Filter.Group<Filter<*>>(
-    "排行榜（搜索文本时无效）",
-    listOf<Filter<*>>(
-        TypeFilter(),
-        DateFilter(),
-    ),
-) {
-    private class DateFilter : CopyMangaFilter(
-        "时间",
-        "date_type",
-        arrayOf(
-            Param("今日", "day"),
-            Param("近七天", "week"),
-            Param("近三十天", "month"),
-            Param("总榜单", "total"),
+class RankingGroup :
+    Filter.Group<Filter<*>>(
+        "排行榜（搜索文本时无效）",
+        listOf<Filter<*>>(
+            TypeFilter(),
+            DateFilter(),
         ),
-    )
+    ) {
+    private class DateFilter :
+        CopyMangaFilter(
+            "时间",
+            "date_type",
+            arrayOf(
+                Param("今日", "day"),
+                Param("近七天", "week"),
+                Param("近三十天", "month"),
+                Param("总榜单", "total"),
+            ),
+        )
 }
 
-class TypeFilter : CopyMangaFilter(
-    "类型",
-    "audience_type",
-    arrayOf(
-        Param("不查看排行榜", ""),
-        Param("最新上架", ""),
-        Param("男频", "male"),
-        Param("女频", "female"),
+class TypeFilter :
+    CopyMangaFilter(
+        "类型",
+        "audience_type",
+        arrayOf(
+            Param("不查看排行榜", ""),
+            Param("最新上架", ""),
+            Param("男频", "male"),
+            Param("女频", "female"),
 
-    ),
-)
+        ),
+    )

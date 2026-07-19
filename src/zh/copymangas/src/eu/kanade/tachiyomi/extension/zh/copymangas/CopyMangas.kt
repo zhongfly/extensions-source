@@ -21,6 +21,8 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.annotation.Source
+import keiyoushi.network.rateLimit
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
@@ -42,14 +44,15 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.thread
+import kotlin.time.Duration.Companion.seconds
 
-class CopyMangas : HttpSource(), ConfigurableSource {
-    override val name = "拷贝漫画"
-    override val lang = "zh"
+@Source
+abstract class CopyMangas :
+    HttpSource(),
+    ConfigurableSource {
     override val supportsLatest = true
 
     val json: Json = Injekt.get()
@@ -60,7 +63,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private var apiUrl = getDomain(DOMAIN_PREF, DEFAULT_API_DOMAIN)
     private var webUrl = getDomain(WEB_DOMAIN_PREF, DEFAULT_WEB_DOMAIN)
-    override val baseUrl = "https://" + DEFAULT_WEB_DOMAIN
 
     private var hotmangaApiUrl = getDomain(HOTMANGA_DOMAIN_PREF, DEFAULT_HOTMANGA_API_DOMAIN)
     private var hotmangaWebUrl = getDomain(HOTMANGA_WEB_DOMAIN_PREF, DEFAULT_HOTMANGA_WEB_DOMAIN)
@@ -74,21 +76,17 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
-    private fun getUrl(type: String): String {
-        return when (type) {
-            "api" -> if (useHotmanga) hotmangaApiUrl else apiUrl
-            "web" -> if (useHotmanga) hotmangaWebUrl else webUrl
-            else -> throw IllegalArgumentException("Unknown URL type: $type")
-        }
+    private fun getUrl(type: String): String = when (type) {
+        "api" -> if (useHotmanga) hotmangaApiUrl else apiUrl
+        "web" -> if (useHotmanga) hotmangaWebUrl else webUrl
+        else -> throw IllegalArgumentException("Unknown URL type: $type")
     }
 
     private val chapterRatelimitRegex = Regex("""/chapter2?/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
     private val trustManager = object : X509TrustManager {
-        override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return emptyArray()
-        }
+        override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
         }
@@ -99,13 +97,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val sslContext = SSLContext.getInstance("SSL").apply {
         init(null, arrayOf(trustManager), SecureRandom())
     }
-
-    private val chapterInterceptor = RateLimitInterceptor(
-        null,
-        preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(),
-        61,
-        TimeUnit.SECONDS,
-    )
 
     private fun responseIntercepter(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -124,15 +115,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
-    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
+    override val client: OkHttpClient = network.client.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
-        .addInterceptor { chain ->
-            val url = chain.request().url.toString()
-            when {
-                url.contains(chapterRatelimitRegex) -> chapterInterceptor.intercept(chain)
-                else -> chain.proceed(chain.request())
-            }
-        }
+        .rateLimit(preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(), 61.seconds) { it.toString().contains(chapterRatelimitRegex) }
         .addInterceptor(CommentsInterceptor)
         .addInterceptor(::responseIntercepter)
         .build()
@@ -309,11 +294,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun getMangaUrl(manga: SManga) = getUrl("web") + manga.url
 
-    override fun mangaDetailsRequest(manga: SManga) =
-        GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
+    override fun mangaDetailsRequest(manga: SManga) = GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
 
-    override fun mangaDetailsParse(response: Response): SManga =
-        response.parseAs<ResultDto<MangaWrapperDto>>().results.toSMangaDetails()
+    override fun mangaDetailsParse(response: Response): SManga = response.parseAs<ResultDto<MangaWrapperDto>>().results.toSMangaDetails()
 
     private fun ArrayList<SChapter>.fetchChapterGroup(manga: String, key: String, name: String) {
         val result = ArrayList<SChapter>(0)
@@ -340,23 +323,20 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         addAll(result.asReversed())
     }
 
-    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
-        Single.create<List<SChapter>> {
-            val result = ArrayList<SChapter>()
-            val response = client.newCall(mangaDetailsRequest(manga)).execute()
-            val groups = response.parseAs<ResultDto<MangaWrapperDto>>().results.groups!!.values
-            val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
-            for (group in groups) {
-                result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
-            }
-            it.onSuccess(result)
-        }.toObservable()
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
+        val result = ArrayList<SChapter>()
+        val response = client.newCall(mangaDetailsRequest(manga)).execute()
+        val groups = response.parseAs<ResultDto<MangaWrapperDto>>().results.groups!!.values
+        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
+        for (group in groups) {
+            result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
+        }
+        it.onSuccess(result)
+    }.toObservable()
 
-    override fun chapterListRequest(manga: SManga) =
-        throw UnsupportedOperationException("Not used.")
+    override fun chapterListRequest(manga: SManga) = throw UnsupportedOperationException("Not used.")
 
-    override fun chapterListParse(response: Response) =
-        throw UnsupportedOperationException("Not used.")
+    override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
     override fun getChapterUrl(chapter: SChapter) = getUrl("web") + chapter.url.replace("/chapter2/", "/chapter/")
 
@@ -394,8 +374,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return pageList
     }
 
-    override fun imageUrlParse(response: Response) =
-        throw UnsupportedOperationException("Not used.")
+    override fun imageUrlParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
     private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
     override fun imageRequest(page: Page): Request {

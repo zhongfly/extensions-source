@@ -1,27 +1,28 @@
 plugins {
-    id("com.android.library")
-    kotlin("android")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
+
+    alias(kei.plugins.android.base)
+    alias(kei.plugins.spotless)
 }
 
 android {
-    compileSdk = AndroidConfig.compileSdk
-
-    defaultConfig {
-        minSdk = AndroidConfig.minSdk
-    }
-
     namespace = "keiyoushi.core"
 
     buildFeatures {
         resValues = false
-        shaders = false
     }
 
-    kotlinOptions {
-        freeCompilerArgs += "-opt-in=kotlinx.serialization.ExperimentalSerializationApi"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 
 dependencies {
-    compileOnly(versionCatalogs.named("libs").findBundle("common").get())
+    compileOnly(libs.bundles.common)
+    compileOnly(libs.tachiyomi.lib.v16)
+
+    testImplementation(libs.bundles.common)
+    testImplementation(libs.tachiyomi.lib.v16)
+    testImplementation(libs.junit)
 }

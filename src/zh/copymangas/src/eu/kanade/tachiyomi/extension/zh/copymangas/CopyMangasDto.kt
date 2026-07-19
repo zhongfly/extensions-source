@@ -20,13 +20,23 @@ class MangaDto(
 ) {
     fun toSManga() = SManga.create().apply {
         url = URL_PREFIX + path_word
-        title = if (convertToSc) { ChineseUtils.toSimplified(name) } else { name }
+        title = if (convertToSc) {
+            ChineseUtils.toSimplified(name)
+        } else {
+            name
+        }
         author = this@MangaDto.author.joinToString { it.name }
         thumbnail_url = cover.removeSuffix(".328x422.jpg")
     }
 
     fun toSMangaDetails(groups: ChapterGroups) = toSManga().apply {
-        description = (if (convertToSc) { ChineseUtils.toSimplified(brief) } else { brief })
+        description = (
+            if (convertToSc) {
+                ChineseUtils.toSimplified(brief)
+            } else {
+                brief
+            }
+            )
         genre = buildList(theme!!.size + 1) {
             add(region!!.display)
             theme.mapTo(this) { it.name }
@@ -55,7 +65,11 @@ class ChapterDto(
 ) {
     fun toSChapter(group: String) = SChapter.create().apply {
         url = "/comic/$comic_path_word/chapter2/$uuid"
-        name = if (group.isEmpty()) { this@ChapterDto.name } else { group + '：' + this@ChapterDto.name }
+        name = if (group.isEmpty()) {
+            this@ChapterDto.name
+        } else {
+            group + '：' + this@ChapterDto.name
+        }
         date_upload = dateFormat.parse(datetime_created)?.time ?: 0
     }
 

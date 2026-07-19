@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up JDK
         uses: actions/setup-java@v5
@@ -28,7 +28,7 @@ jobs:
           distribution: temurin
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Prepare signing key
         run: |
@@ -45,13 +45,17 @@ jobs:
           ./gradlew -p src assembleRelease
 
       - name: Upload APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "individual-apks"
-          path: "**/*.apk"
+          path: |
+            **/build/outputs/apk/release/*.apk
+            **/build/outputs/jar/release/*.jar
+            **/build/keiyoushi-source-info.json
           retention-days: 1
 
       - name: Clean up CI files
+        if: always()
         run: rm signingkey.jks
 
   publish_repo:
@@ -62,37 +66,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download APK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ~/apk-artifacts
 
-      - name: Set up JDK
-        uses: actions/setup-java@v5
-        with:
-          java-version: 17
-          distribution: temurin
-
       - name: Checkout main branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
+          ref: main
           path: main
-
-      - name: Create repo artifacts
-        run: |
-          cd main
-          python ./.github/scripts/move-apks.py
-          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
-          curl -sSL "$INSPECTOR_LINK" -o ./Inspector.jar
-          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
-          python ./.github/scripts/create-repo.py
+          persist-credentials: false
 
       - name: Checkout repo branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: repo
           path: repo
-
-      - name: Deploy repo
+          persist-credentials: true
+          
+      - name: Publish and deploy repo
+        env:
+          DELETE: '["zh.copymangas"]'
         run: |
           cd repo
-          ../main/.github/scripts/commit-repo.sh
+          pip install protobuf
+          python ../main/.github/scripts/publish-repo.py "$DELETE"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git status
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update extensions repo"
+            git push
+          else
+            echo "No changes to commit"
+          fi

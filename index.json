@@ -1,22 +1,33 @@
-[
-  {
-    "name": "Tachiyomi: CopyMangas",
-    "pkg": "eu.kanade.tachiyomi.extension.zh.copymangas",
-    "apk": "tachiyomi-zh.copymangas-v1.4.55.apk",
-    "lang": "zh",
-    "code": 55,
-    "version": "1.4.55",
-    "nsfw": 0,
-    "hasReadme": 0,
-    "hasChangelog": 0,
-    "sources": [
+{
+  "name": "zhongfly",
+  "badgeLabel": "ZF",
+  "signingKey": "3bcded04aac982df40188edc5f28091523f3972a87d193c7111f9a1912b180a4",
+  "contact": {
+    "website": "https://github.com/zhongfly/extensions-source"
+  },
+  "extensionList": {
+    "extensions": [
       {
-        "name": "拷贝漫画",
-        "lang": "zh",
-        "id": "6696312508930833206",
-        "baseUrl": "https://www.copy3000.com",
-        "versionId": 1
+        "name": "CopyMangas",
+        "packageName": "eu.kanade.tachiyomi.extension.zh.copymangas",
+        "resources": {
+          "apkUrl": "https://raw.githubusercontent.com/zhongfly/extensions/repo/apk/tachiyomi-zh.copymangas-v1.4.55.apk",
+          "iconUrl": "https://raw.githubusercontent.com/zhongfly/extensions/repo/icon/eu.kanade.tachiyomi.extension.zh.copymangas.png",
+          "jarUrl": "https://raw.githubusercontent.com/zhongfly/extensions/repo/jar/tachiyomi-zh.copymangas-v1.4.55.jar"
+        },
+        "extensionLib": "1.4",
+        "versionCode": "55",
+        "versionName": "1.4.55",
+        "contentWarning": "CONTENT_WARNING_SAFE",
+        "sources": [
+          {
+            "id": "6696312508930833206",
+            "name": "\u62f7\u8d1d\u6f2b\u753b",
+            "language": "zh",
+            "homeUrl": "https://www.copy3000.com"
+          }
+        ]
       }
     ]
   }
-]
+}

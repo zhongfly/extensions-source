@@ -2,10 +2,10 @@
   {
     "name": "Tachiyomi: CopyMangas",
     "pkg": "eu.kanade.tachiyomi.extension.zh.copymangas",
-    "apk": "tachiyomi-zh.copymangas-v1.4.54.apk",
+    "apk": "tachiyomi-zh.copymangas-v1.4.55.apk",
     "lang": "zh",
-    "code": 54,
-    "version": "1.4.54",
+    "code": 55,
+    "version": "1.4.55",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
@@ -14,7 +14,7 @@
         "name": "拷贝漫画",
         "lang": "zh",
         "id": "6696312508930833206",
-        "baseUrl": "https://www.2025copy.com",
+        "baseUrl": "https://www.copy3000.com",
         "versionId": 1
       }
     ]

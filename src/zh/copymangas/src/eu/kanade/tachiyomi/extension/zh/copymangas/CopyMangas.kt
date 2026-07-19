@@ -756,10 +756,10 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 //        private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
-        private const val DEFAULT_API_DOMAIN = "api.2025copy.com"
-        private const val DEFAULT_WEB_DOMAIN = "www.2025copy.com"
+        private const val DEFAULT_API_DOMAIN = "api.copy3000.com"
+        private const val DEFAULT_WEB_DOMAIN = "www.copy3000.com"
         private const val DEFAULT_HOTMANGA_API_DOMAIN = "mapi.hotmangasd.com"
-        private const val DEFAULT_HOTMANGA_WEB_DOMAIN = "www.relamanhua.org"
+        private const val DEFAULT_HOTMANGA_WEB_DOMAIN = "www.manga2026.com"
 
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()

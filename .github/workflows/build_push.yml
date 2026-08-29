@@ -1,6 +1,6 @@
 name: CI
 
-on: 
+on:
   workflow_dispatch:
     inputs:
       release:
@@ -9,26 +9,32 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: write
 
-env:
-  CI_CHUNK_SIZE: 65
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   build_individual:
     name: Build individual modules
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout main branch
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - name: Set up JDK
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
           java-version: 17
           distribution: temurin
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Prepare signing key
         run: |
@@ -36,12 +42,11 @@ jobs:
 
       - name: Build extensions
         env:
-          CI_CHUNK_NUM: 0
           ALIAS: ${{ secrets.ALIAS }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          chmod +x ./gradlew | true
+          chmod +x ./gradlew || true
           ./gradlew -p src assembleRelease
 
       - name: Upload APKs
@@ -64,6 +69,7 @@ jobs:
     needs:
       - build_individual
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
@@ -83,21 +89,25 @@ jobs:
           ref: repo
           path: repo
           persist-credentials: true
-          
+
       - name: Publish and deploy repo
         env:
-          DELETE: '["zh.copymangas"]'
+          DELETE: '[]'
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           cd repo
           pip install protobuf
-          python ../main/.github/scripts/publish-repo.py "$DELETE"
+          python -u ../main/.github/scripts/publish-repo.py "$DELETE" "$GITHUB_SHA"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git status
           if [ -n "$(git status --porcelain)" ]; then
             git add .
             git commit -m "Update extensions repo"
-            git push
+            git push origin HEAD:repo
+            curl https://purge.jsdelivr.net/gh/zhongfly/extensions-source@repo/index.json
+            curl https://purge.jsdelivr.net/gh/zhongfly/extensions-source@repo/index.pb
           else
             echo "No changes to commit"
           fi

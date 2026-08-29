@@ -16,7 +16,11 @@ import okhttp3.ResponseBody.Companion.asResponseBody
 import okio.Buffer
 
 fun parseChapterComments(response: Response): List<String> {
-    val comments = response.parseAs<ResultDto<ListDto<CommentDto>>>().results.list.map { "${it.user_name}：${it.comment}" }
+    val comments = response.use {
+        it.body.string().parseAs<ResultDto<ListDto<CommentDto>>>().results.list.map { comment ->
+            "${comment.user_name}：${comment.comment}"
+        }
+    }
     return comments.ifEmpty { listOf("暂无吐槽") }
 }
 

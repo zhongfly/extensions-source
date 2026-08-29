@@ -12,7 +12,6 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -20,28 +19,24 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.network.post
 import keiyoushi.network.rateLimit
+import keiyoushi.source.KeiSource
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.serializer
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.Response
-import okhttp3.ResponseBody
-import rx.Observable
-import rx.Single
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
@@ -51,11 +46,8 @@ import kotlin.time.Duration.Companion.seconds
 
 @Source
 abstract class CopyMangas :
-    HttpSource(),
+    KeiSource(),
     ConfigurableSource {
-    override val supportsLatest = true
-
-    val json: Json = Injekt.get()
     private val preferences by getPreferencesLazy()
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
@@ -101,29 +93,29 @@ abstract class CopyMangas :
         init(null, arrayOf(trustManager), SecureRandom())
     }
 
-    private fun responseIntercepter(chain: Interceptor.Chain): Response {
+    private fun responseInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!request.url.toString().contains(getUrl("api"))) return chain.proceed(request)
 
         val response = chain.proceed(request)
         if (!response.isSuccessful) return response
         if (response.header("Content-Type") != "application/json") {
+            response.close()
             throw Exception("返回数据错误，不是json")
-        } else {
-            val result = response.peekBody(Long.MAX_VALUE).parseAs<ResultMessageDto>()
-            if (result.code != 200) {
-                throw Exception("返回数据错误:${result.message}")
-            }
-            return response
         }
+
+        val result = response.peekBody(Long.MAX_VALUE).string().parseAs<ResultMessageDto>()
+        if (result.code != 200) {
+            response.close()
+            throw Exception("返回数据错误:${result.message}")
+        }
+        return response
     }
 
-    override val client: OkHttpClient = network.client.newBuilder()
-        .sslSocketFactory(sslContext.socketFactory, trustManager)
+    override fun OkHttpClient.Builder.configureClient() = sslSocketFactory(sslContext.socketFactory, trustManager)
         .rateLimit(preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(), 61.seconds) { it.toString().contains(chapterRatelimitRegex) }
         .addInterceptor(CommentsInterceptor)
-        .addInterceptor(::responseIntercepter)
-        .build()
+        .addInterceptor(::responseInterceptor)
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
     private fun Headers.Builder.setWebp(useWebp: Boolean) = set(
@@ -153,6 +145,10 @@ abstract class CopyMangas :
         },
     )
 
+    override fun Headers.Builder.configureHeaders() = setUserAgent(
+        preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!,
+    )
+
     private var apiHeaders = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
@@ -162,10 +158,16 @@ abstract class CopyMangas :
         .add("platform", "1")
         .build()
 
-    private fun fetchToken(username: String, password: String): Map<String, String> {
+    private val webHeaders: Headers
+        get() = headers.newBuilder()
+            .set("Referer", "$baseUrl/")
+            .set("Origin", baseUrl)
+            .build()
+
+    private suspend fun fetchToken(username: String, password: String): Map<String, String> {
         val results =
             mutableMapOf<String, String>("success" to "false", "message" to "", "token" to "")
-        if (username.isNullOrBlank() || password.isNullOrBlank()) {
+        if (username.isBlank() || password.isBlank()) {
             results["message"] = "用户名或密码为空"
             return results
         }
@@ -173,13 +175,13 @@ abstract class CopyMangas :
             val salt = (1000..9999).random().toString()
             val passwordEncoded =
                 Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
-            val formBody: RequestBody = FormBody.Builder()
+            val formBody = FormBody.Builder()
                 .addEncoded("username", username)
                 .addEncoded("password", passwordEncoded)
                 .addEncoded("salt", salt)
                 .build()
             val headers = apiHeaders.newBuilder().setToken().build()
-            val response = client.newCall(POST("${getUrl("api")}/api/v3/login", headers, formBody)).execute()
+            val response = client.post("${getUrl("api")}/api/v3/login", headers, formBody, ensureSuccess = false)
             if (response.code != 200) {
                 results["message"] =
                     response.parseAs<ResultMessageDto>().message
@@ -194,52 +196,48 @@ abstract class CopyMangas :
         return results
     }
 
-    private fun verifyToken(token: String): Boolean {
-        if (token.isNullOrBlank()) {
+    private suspend fun verifyToken(token: String): Boolean {
+        if (token.isBlank()) {
             return false
         }
-        var result = false
         try {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
                 .build()
-            val response = client.newCall(GET("${getUrl("api")}/api/v3/member/info", headers)).execute()
-            result = (response.code == 200)
+            return client.get("${getUrl("api")}/api/v3/member/info", headers, ensureSuccess = false).use {
+                it.code == 200
+            }
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
         }
-        return result
+        return false
     }
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     }
 
-    override fun popularMangaRequest(page: Int): Request {
+    override suspend fun getPopularManga(page: Int): MangasPage {
         val offset = PAGE_SIZE * (page - 1)
-        return GET(
+        return getMangaList(
             "${getUrl("api")}/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=",
-            apiHeaders,
         )
     }
 
-    override fun popularMangaParse(response: Response): MangasPage {
-        val page = response.parseAs<ResultDto<ListDto<MangaDto>>>().results
+    private suspend fun getMangaList(url: String): MangasPage {
+        val page = client.get(url, apiHeaders).parseAs<ResultDto<ListDto<MangaDto>>>().results
         val hasNextPage = page.offset + page.limit < page.total
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
 
-    override fun latestUpdatesRequest(page: Int): Request {
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
         val offset = PAGE_SIZE * (page - 1)
-        return GET(
+        return getMangaList(
             "${getUrl("api")}/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=",
-            apiHeaders,
         )
     }
 
-    override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val headersBuilder = apiHeaders.newBuilder()
         val offset = PAGE_SIZE * (page - 1)
         val builder = getUrl("api").toHttpUrl().newBuilder()
@@ -277,10 +275,8 @@ abstract class CopyMangas :
                 }
             }
         }
-        return Request.Builder().url(builder.build()).headers(headersBuilder.build()).build()
-    }
 
-    override fun searchMangaParse(response: Response): MangasPage {
+        val response = client.get(builder.build(), headersBuilder.build())
         val page = if (response.request.url.pathSegments.last().startsWith("comic")) {
             response.parseAs<ResultDto<ListDto<MangaDto>>>().results
         } else {
@@ -297,11 +293,12 @@ abstract class CopyMangas :
 
     override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
 
-    override fun mangaDetailsRequest(manga: SManga) = GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
+    private suspend fun getMangaDetails(mangaSlug: String): MangaWrapperDto = client.get(
+        "${getUrl("api")}/api/v3/comic2/$mangaSlug?platform=1&_update=true",
+        apiHeaders,
+    ).parseAs<ResultDto<MangaWrapperDto>>().results
 
-    override fun mangaDetailsParse(response: Response): SManga = response.parseAs<ResultDto<MangaWrapperDto>>().results.toSMangaDetails()
-
-    private fun ArrayList<SChapter>.fetchChapterGroup(manga: String, key: String, name: String) {
+    private suspend fun fetchChapterGroup(manga: String, key: String, name: String): List<SChapter> {
         val result = ArrayList<SChapter>(0)
         var offset = 0
         var hasNextPage = true
@@ -311,50 +308,46 @@ abstract class CopyMangas :
             else -> name
         }
         while (hasNextPage) {
-            val response = client.newCall(
-                GET(
-                    "${getUrl("api")}/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&_update=true",
-                    apiHeaders,
-                ),
-            ).execute()
-            val chapters = response.parseAs<ResultDto<ListDto<ChapterDto>>>().results
+            val chapters = client.get(
+                "${getUrl("api")}/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&_update=true",
+                apiHeaders,
+            ).parseAs<ResultDto<ListDto<ChapterDto>>>().results
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(groupName) }
             offset += CHAPTER_PAGE_SIZE
             hasNextPage = offset < chapters.total
         }
-        addAll(result.asReversed())
+        return result.asReversed()
     }
 
-    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
-        val result = ArrayList<SChapter>()
-        val response = client.newCall(mangaDetailsRequest(manga)).execute()
-        val groups = response.parseAs<ResultDto<MangaWrapperDto>>().results.groups!!.values
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val mangaDetails = getMangaDetails(manga.url.removePrefix(MangaDto.URL_PREFIX))
+        val chapterList = ArrayList<SChapter>()
+        val groups = mangaDetails.groups!!.values
         val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
         for (group in groups) {
-            result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
+            chapterList += fetchChapterGroup(mangaSlug, group.path_word, group.name)
         }
-        it.onSuccess(result)
-    }.toObservable()
 
-    override fun chapterListRequest(manga: SManga) = throw UnsupportedOperationException("Not used.")
-
-    override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
+        return SMangaUpdate(mangaDetails.toSMangaDetails(), chapterList)
+    }
 
     override fun getChapterUrl(chapter: SChapter) = baseUrl + chapter.url.replace("/chapter2/", "/chapter/")
 
-    // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter): Request {
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
         val url = if (useHotmanga) {
             "$hotmangaApiUrl/api/v3${chapter.url.replace("/chapter2/", "/chapter/")}"
         } else {
             "$apiUrl/api/v3${chapter.url}"
         }
-        return GET("$url?platform=1&_update=true", apiHeaders)
-    }
-
-    override fun pageListParse(response: Response): List<Page> {
-        val result = response.parseAs<ResultDto<ChapterPageListWrapperDto>>().results
+        val chapterId = url.toHttpUrl().pathSegments.last()
+        val result = client.get("$url?platform=1&_update=true", apiHeaders)
+            .parseAs<ResultDto<ChapterPageListWrapperDto>>().results
         val images = result.chapter.contents
         val orders = result.chapter.words
         val pageList = if (orders.isNullOrEmpty()) {
@@ -365,7 +358,6 @@ abstract class CopyMangas :
             }
         }
         if (preferences.getBoolean(COMMENTS_PREF, false)) {
-            val chapterId = response.request.url.pathSegments.last()
             pageList.add(
                 Page(
                     pageList.size,
@@ -377,8 +369,6 @@ abstract class CopyMangas :
         return pageList
     }
 
-    override fun imageUrlParse(response: Response) = throw UnsupportedOperationException("Not used.")
-
     private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
     override fun imageRequest(page: Page): Request {
         var imageUrl = page.imageUrl!!
@@ -386,12 +376,10 @@ abstract class CopyMangas :
             return GET(imageUrl, apiHeaders).newBuilder().tag(String::class, COMMENTS_FLAG).build()
         }
         imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
-        return GET(imageUrl, headers)
+        return GET(imageUrl, webHeaders)
     }
 
     private fun chapterCommentsUrl(chapterId: String) = "$apiUrl/api/v3/roasts?chapter_id=$chapterId&limit=30&offset=0&_update=true"
-
-    inline fun <reified T> ResponseBody.parseAs(): T = json.decodeFromStream(serializer(), this.byteStream())
 
     private inline fun showToast(
         context: Context,
@@ -407,50 +395,38 @@ abstract class CopyMangas :
         }
     }
 
-    private var genres: Array<Param> = emptyArray()
-    private var isFetchingGenres = false
+    override val supportsFilterFetching = true
 
-    override fun getFilterList(): FilterList {
-        val genreFilter = if (genres.isEmpty()) {
-            fetchGenres()
-            Filter.Header("点击“重置”尝试刷新题材分类")
-        } else {
-            GenreFilter(genres)
-        }
-        return FilterList(
-            SearchFilter(),
-            Filter.Separator(),
-            RankingGroup(),
-            Filter.Separator(),
-            Filter.Header("分类（搜索文本时无效）"),
-            genreFilter,
-            TopFilter(),
-            SortFilter(),
-        )
-    }
+    override suspend fun fetchFilterData(): JsonElement = client.get(
+        "${getUrl("api")}/api/v3/theme/comic/count?limit=500&offset=0&free_type=1",
+        apiHeaders,
+    ).parseAs()
 
-    private fun fetchGenres() {
-        if (genres.isNotEmpty() || isFetchingGenres) {
-            return
-        }
-        isFetchingGenres = true
-        thread {
-            try {
-                val response = client.newCall(
-                    GET(
-                        "${getUrl("api")}/api/v3/theme/comic/count?limit=500&offset=0&free_type=1",
-                        apiHeaders,
-                    ),
-                ).execute()
-                val list = response.parseAs<ResultDto<ListDto<KeywordDto>>>().results.list.filter { it.count != null && it.count != 0 }.sortedBy { it.name }
-                val result = ArrayList<Param>(list.size + 1).apply { add(Param("全部", "")) }
-                genres = list.mapTo(result) { it.toParam() }.toTypedArray()
-            } catch (e: Exception) {
-                Log.e("CopyManga", "failed to fetch genres", e)
-            } finally {
-                isFetchingGenres = false
+    override fun getFilterList(data: JsonElement?): FilterList {
+        val genreFilter = data
+            ?.parseAs<ResultDto<ListDto<KeywordDto>>>()
+            ?.results
+            ?.list
+            ?.filter { it.count != null && it.count != 0 }
+            ?.sortedBy { it.name }
+            ?.let { genres ->
+                val params = ArrayList<Param>(genres.size + 1).apply { add(Param("全部", "")) }
+                GenreFilter(genres.mapTo(params) { it.toParam() }.toTypedArray())
             }
-        }
+            ?: Filter.Header("点击“重置”尝试刷新题材分类")
+
+        return FilterList(
+            buildList<Filter<*>> {
+                add(SearchFilter())
+                add(Filter.Separator())
+                add(RankingGroup())
+                add(Filter.Separator())
+                add(Filter.Header("分类（搜索文本时无效）"))
+                add(genreFilter)
+                add(TopFilter())
+                add(SortFilter())
+            },
+        )
     }
 
     var fetchTokenState =
@@ -673,7 +649,7 @@ abstract class CopyMangas :
                 }
                 val username = preferences.getString(usernameRef, "")!!
                 val password = preferences.getString(passwordRef, "")!!
-                if (username.isNullOrBlank() || password.isNullOrBlank()) {
+                if (username.isBlank() || password.isBlank()) {
                     Toast.makeText(
                         screen.context,
                         "请在扩展设置界面输入用户名和密码",
@@ -684,24 +660,26 @@ abstract class CopyMangas :
                 Toast.makeText(screen.context, "开始尝试登录以更新Token", Toast.LENGTH_SHORT).show()
                 fetchTokenState = 1
                 thread {
-                    try {
-                        if (!verifyToken(preferences.getString(tokenRef, "")!!)) {
-                            val results = fetchToken(username, password)
-                            if (results["success"] != "false") {
-                                preferences.edit().putString(tokenRef, results["token"]!!).apply()
-                                showToast(screen.context, "Token已经成功更新，返回重进刷新")
+                    runBlocking {
+                        try {
+                            if (!verifyToken(preferences.getString(tokenRef, "")!!)) {
+                                val results = fetchToken(username, password)
+                                if (results["success"] != "false") {
+                                    preferences.edit().putString(tokenRef, results["token"]!!).apply()
+                                    showToast(screen.context, "Token已经成功更新，返回重进刷新")
+                                } else {
+                                    showToast(screen.context, "Token获取失败，${results["message"]}")
+                                    fetchTokenState = -1
+                                }
+                                fetchTokenState = 2
                             } else {
-                                showToast(screen.context, "Token获取失败，${results["message"]}")
-                                fetchTokenState = -1
+                                showToast(screen.context, "Token仍有效，不需要更新")
+                                fetchTokenState = 3
                             }
-                            fetchTokenState = 2
-                        } else {
-                            showToast(screen.context, "Token仍有效，不需要更新")
-                            fetchTokenState = 3
+                        } catch (e: Throwable) {
+                            fetchTokenState = 0
+                            Log.e("CopyMangas", "failed to fetch token", e)
                         }
-                    } catch (e: Throwable) {
-                        fetchTokenState = 0
-                        Log.e("CopyMangas", "failed to fetch token", e)
                     }
                 }
                 false
@@ -746,10 +724,10 @@ abstract class CopyMangas :
 //        private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
-        private const val DEFAULT_API_DOMAIN = "api.copy3000.com"
-        private const val DEFAULT_WEB_DOMAIN = "www.copy3000.com"
-        private const val DEFAULT_HOTMANGA_API_DOMAIN = "mapi.hotmangasd.com"
-        private const val DEFAULT_HOTMANGA_WEB_DOMAIN = "www.manga2026.com"
+        private const val DEFAULT_API_DOMAIN = "api.copy4000.com"
+        private const val DEFAULT_WEB_DOMAIN = "www.copy4000.com"
+        private const val DEFAULT_HOTMANGA_API_DOMAIN = "mapi.hotmangasf.com"
+        private const val DEFAULT_HOTMANGA_WEB_DOMAIN = "www.manga2026.xyz"
 
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..60 step 5).map { i -> i.toString() }.toTypedArray()

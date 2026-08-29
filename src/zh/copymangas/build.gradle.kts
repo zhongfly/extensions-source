@@ -6,14 +6,14 @@ plugins {
 
 keiyoushi {
     name = "CopyMangas"
-    versionCode = 56
+    versionCode = 57
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     source {
         name = "拷贝漫画"
         lang = "zh"
-        baseUrl = "https://www.copy3000.com"
+        baseUrl = "https://www.copy4000.com"
     }
 }
 

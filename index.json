@@ -11,20 +11,20 @@
         "name": "CopyMangas",
         "packageName": "eu.kanade.tachiyomi.extension.zh.copymangas",
         "resources": {
-          "apkUrl": "https://github.com/zhongfly/extensions-source/releases/download/48ddc91/tachiyomi-zh.copymangas-v1.4.56.apk",
+          "apkUrl": "https://github.com/zhongfly/extensions-source/releases/download/4d2d2e5/tachiyomi-zh.copymangas-v1.6.57.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/zhongfly/extensions-source@main/src/zh/copymangas/res/mipmap-xhdpi/ic_launcher.png",
-          "jarUrl": "https://github.com/zhongfly/extensions-source/releases/download/48ddc91/tachiyomi-zh.copymangas-v1.4.56.jar"
+          "jarUrl": "https://github.com/zhongfly/extensions-source/releases/download/4d2d2e5/tachiyomi-zh.copymangas-v1.6.57.jar"
         },
-        "extensionLib": "1.4",
-        "versionCode": "56",
-        "versionName": "1.4.56",
+        "extensionLib": "1.6",
+        "versionCode": "57",
+        "versionName": "1.6.57",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
             "id": "6696312508930833206",
             "name": "\u62f7\u8d1d\u6f2b\u753b",
             "language": "zh",
-            "homeUrl": "https://www.copy3000.com"
+            "homeUrl": "https://www.copy4000.com"
           }
         ]
       }

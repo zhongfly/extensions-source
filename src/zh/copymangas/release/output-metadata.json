@@ -13,9 +13,9 @@
       "attributes": [],
       "versionCode": 55,
       "versionName": "1.4.55",
-      "outputFile": "tachiyomi-zh.copymangas-v1.4.55-release.apk"
+      "outputFile": "tachiyomi-zh.copymangas-v1.4.55.apk"
     }
   ],
   "elementType": "File",
-  "minSdkVersionForDexing": 21
+  "minSdkVersionForDexing": 26
 }

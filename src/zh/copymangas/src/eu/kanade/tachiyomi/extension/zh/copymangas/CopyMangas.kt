@@ -82,6 +82,9 @@ abstract class CopyMangas :
         else -> throw IllegalArgumentException("Unknown URL type: $type")
     }
 
+    override val baseUrl: String
+        get() = getUrl("web")
+
     private val chapterRatelimitRegex = Regex("""/chapter2?/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
@@ -292,7 +295,7 @@ abstract class CopyMangas :
         return MangasPage(mangas, hasNextPage)
     }
 
-    override fun getMangaUrl(manga: SManga) = getUrl("web") + manga.url
+    override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
 
     override fun mangaDetailsRequest(manga: SManga) = GET("${getUrl("api")}/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=1&_update=true", apiHeaders)
 
@@ -338,7 +341,7 @@ abstract class CopyMangas :
 
     override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
-    override fun getChapterUrl(chapter: SChapter) = getUrl("web") + chapter.url.replace("/chapter2/", "/chapter/")
+    override fun getChapterUrl(chapter: SChapter) = baseUrl + chapter.url.replace("/chapter2/", "/chapter/")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
     override fun pageListRequest(chapter: SChapter): Request {
@@ -473,7 +476,11 @@ abstract class CopyMangas :
                     domain = defaultDomain
                 }
                 preferences.edit().putString(ref, domain).commit()
-                apiUrl = "https://$domain"
+                if (useHotmanga) {
+                    hotmangaApiUrl = "https://$domain"
+                } else {
+                    apiUrl = "https://$domain"
+                }
                 true
             }
         }.let(screen::addPreference)
@@ -496,7 +503,11 @@ abstract class CopyMangas :
                     domain = defaultDomain
                 }
                 preferences.edit().putString(ref, domain).commit()
-                webUrl = "https://$domain"
+                if (useHotmanga) {
+                    hotmangaWebUrl = "https://$domain"
+                } else {
+                    webUrl = "https://$domain"
+                }
                 true
             }
         }.let(screen::addPreference)

@@ -114,8 +114,15 @@ abstract class CopyMangas :
 
     override fun OkHttpClient.Builder.configureClient() = sslSocketFactory(sslContext.socketFactory, trustManager)
         .rateLimit(preferences.getString(CHAPTER_API_RATE_PREF, "15")!!.toInt(), 61.seconds) { it.toString().contains(chapterRatelimitRegex) }
-        .addInterceptor(CommentsInterceptor)
-        .addInterceptor(::responseInterceptor)
+        .apply {
+            interceptors().apply {
+                val uncaughtExceptionInterceptor = first { it.javaClass.simpleName == "UncaughtExceptionInterceptor" }
+                remove(uncaughtExceptionInterceptor)
+                add(0, uncaughtExceptionInterceptor)
+                add(1, ::responseInterceptor)
+            }
+            addInterceptor(CommentsInterceptor)
+        }
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
     private fun Headers.Builder.setWebp(useWebp: Boolean) = set(
@@ -298,6 +305,22 @@ abstract class CopyMangas :
         apiHeaders,
     ).parseAs<ResultDto<MangaWrapperDto>>().results
 
+    suspend fun getMangaDetails(manga: SManga): SManga = getMangaDetails(manga.url.removePrefix(MangaDto.URL_PREFIX)).toSMangaDetails()
+
+    suspend fun getChapterList(manga: SManga): List<SChapter> {
+        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
+        val mangaDetails = getMangaDetails(mangaSlug)
+        return fetchChapterList(mangaSlug, mangaDetails.groups)
+    }
+
+    private suspend fun fetchChapterList(manga: String, groups: ChapterGroups?): List<SChapter> {
+        val result = ArrayList<SChapter>()
+        for (group in groups.orEmpty().values) {
+            result += fetchChapterGroup(manga, group.path_word, group.name)
+        }
+        return result
+    }
+
     private suspend fun fetchChapterGroup(manga: String, key: String, name: String): List<SChapter> {
         val result = ArrayList<SChapter>(0)
         var offset = 0
@@ -326,15 +349,16 @@ abstract class CopyMangas :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val mangaDetails = getMangaDetails(manga.url.removePrefix(MangaDto.URL_PREFIX))
-        val chapterList = ArrayList<SChapter>()
-        val groups = mangaDetails.groups!!.values
-        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
-        for (group in groups) {
-            chapterList += fetchChapterGroup(mangaSlug, group.path_word, group.name)
+        if (!fetchDetails && !fetchChapters) {
+            return SMangaUpdate(manga, chapters)
         }
 
-        return SMangaUpdate(mangaDetails.toSMangaDetails(), chapterList)
+        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
+        val mangaDetails = getMangaDetails(mangaSlug)
+        val updatedManga = if (fetchDetails) mangaDetails.toSMangaDetails() else manga
+        val chapterList = if (fetchChapters) fetchChapterList(mangaSlug, mangaDetails.groups) else chapters
+
+        return SMangaUpdate(updatedManga, chapterList)
     }
 
     override fun getChapterUrl(chapter: SChapter) = baseUrl + chapter.url.replace("/chapter2/", "/chapter/")

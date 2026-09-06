@@ -29,19 +29,19 @@ class MangaDto(
         thumbnail_url = cover.removeSuffix(".328x422.jpg")
     }
 
-    fun toSMangaDetails(groups: ChapterGroups) = toSManga().apply {
-        description = (
+    fun toSMangaDetails() = toSManga().apply {
+        description = brief?.let {
             if (convertToSc) {
-                ChineseUtils.toSimplified(brief)
+                ChineseUtils.toSimplified(it)
             } else {
-                brief
+                it
             }
-            )
-        genre = buildList(theme!!.size + 1) {
-            add(region!!.display)
-            theme.mapTo(this) { it.name }
+        }
+        genre = buildList {
+            this@MangaDto.region?.display?.let { add(it) }
+            this@MangaDto.theme.orEmpty().mapTo(this) { it.name }
         }.joinToString { ChineseUtils.toSimplified(it) }
-        status = when (this@MangaDto.status!!.value) {
+        status = when (this@MangaDto.status?.value) {
             0 -> SManga.ONGOING
             1 -> SManga.COMPLETED
             else -> SManga.UNKNOWN
@@ -89,7 +89,7 @@ class ValueDto(val value: Int, val display: String)
 @Serializable
 class MangaWrapperDto(val comic: MangaDto, val groups: ChapterGroups? = null) {
     fun toSManga() = comic.toSManga()
-    fun toSMangaDetails() = comic.toSMangaDetails(groups!!)
+    fun toSMangaDetails() = comic.toSMangaDetails()
 }
 
 typealias ChapterGroups = LinkedHashMap<String, KeywordDto>

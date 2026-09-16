@@ -161,7 +161,7 @@ abstract class CopyMangas :
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
         .setToken("")
-        .add("version", "2025.08.08")
+        .add("version", "2026.08.24")
         .add("platform", "1")
         .build()
 

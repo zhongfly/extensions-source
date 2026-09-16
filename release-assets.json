@@ -1,12 +1,12 @@
 {
   "eu.kanade.tachiyomi.extension.zh.copymangas": {
     "apk": {
-      "name": "tachiyomi-zh.copymangas-v1.6.57.apk",
-      "sha256": "bfb9bc5b0c30de5203c4c9194b0bbf5c145e0a70bcc229f00a884348fc3a665e"
+      "name": "tachiyomi-zh.copymangas-v1.6.58.apk",
+      "sha256": "74f15644f0e73902f195228a64aefe83b1db218604aadfc96befe0aacaeec346"
     },
     "jar": {
-      "name": "tachiyomi-zh.copymangas-v1.6.57.jar",
-      "sha256": "01f8316169dc2103b864dd300b296477f0bc94d63adf437258c6461830bbd26d"
+      "name": "tachiyomi-zh.copymangas-v1.6.58.jar",
+      "sha256": "644adc287468f9d363d0557999adb83eff74e24cbaf1aa8573f0f2cb1b64441e"
     }
   }
 }
